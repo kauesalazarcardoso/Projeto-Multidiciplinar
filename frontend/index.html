@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Açaí App</title>
+</head>
+<body>
+
+<h1>Açaí 🍧</h1>
+
+<button onclick="testar()">Testar Backend</button>
+
+<p id="resposta"></p>
+
+<script>
+function testar() {
+    fetch("http://localhost:5000/")
+        .then(res => res.text())
+        .then(data => {
+            document.getElementById("resposta").innerText = data;
+        });
+}
+</script>
+
+</body>
+</html>
