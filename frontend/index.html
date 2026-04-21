@@ -1,26 +1,217 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-br">
 <head>
-    <meta charset="UTF-8">
-    <title>Açaí App</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Açaí Express</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+    }
+
+    /* HERO */
+    .hero {
+      height: 100vh;
+      background: linear-gradient(180deg, #5a3d8c, #3b2a63);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      text-align: center;
+    }
+
+    .hero h1 {
+      font-size: 60px;
+      margin: 0;
+    }
+
+    .hero p {
+      font-size: 20px;
+      margin: 20px 0;
+    }
+
+    .hero button {
+      background: linear-gradient(45deg, #a020f0, #ff00cc);
+      border: none;
+      padding: 15px 30px;
+      border-radius: 30px;
+      color: white;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    /* SOBRE */
+    .sobre {
+      padding: 60px;
+      background: #f5f5f5;
+    }
+
+    .sobre h2 {
+      text-align: center;
+      color: #5a2ca0;
+      font-size: 40px;
+    }
+
+    .conteudo {
+      display: flex;
+      gap: 40px;
+      margin-top: 40px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .conteudo img {
+      width: 350px;
+      border-radius: 20px;
+    }
+
+    .texto {
+      max-width: 600px;
+      line-height: 1.6;
+    }
+
+    /* PRODUTOS */
+    .produtos {
+      padding: 60px;
+    }
+
+    .produtos h2 {
+      text-align: center;
+      color: #5a2ca0;
+      font-size: 40px;
+    }
+
+    .produtos p {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    .card {
+      height: 220px;
+      border-radius: 20px;
+      display: flex;
+      align-items: flex-end;
+      padding: 20px;
+      color: white;
+      font-size: 20px;
+      background-size: cover;
+      background-position: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* overlay escuro */
+    .card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, transparent, rgba(0,0,0,0.6));
+    }
+
+    .card span {
+      position: relative;
+      z-index: 2;
+    }
+
+    .card1 {
+      background: linear-gradient(180deg, #7b5fc9, #3b2a63);
+    }
+
+    .card2 {
+      background-image: url('img/card2.png');
+    }
+
+    .card3 {
+      background-image: url('img/card3.jfif');
+    }
+
+    .card4 {
+      background-image: url('img/card4.jpg');
+    }
+
+    /* RESPONSIVO */
+    @media (max-width: 768px) {
+      .conteudo {
+        flex-direction: column;
+        text-align: center;
+      }
+
+      .cards {
+        grid-template-columns: 1fr;
+      }
+
+      .hero h1 {
+        font-size: 40px;
+      }
+    }
+  </style>
 </head>
+
 <body>
 
-<h1>Açaí 🍧</h1>
+  <!-- HERO -->
+  <section class="hero">
+    <h1>Açaí Express</h1>
+    <p>A energia do açaí, na velocidade que você merece!</p>
+    <button onclick="irParaPagina()">Peça Agora</button>
+  </section>
 
-<button onclick="testar()">Testar Backend</button>
+  <!-- QUEM SOMOS -->
+  <section class="sobre">
+    <h2>Quem Somos</h2>
 
-<p id="resposta"></p>
+    <div class="conteudo">
+      <div class="texto">
+        <p>No Açaí Express, nossa missão é levar até você o verdadeiro sabor do açaí com praticidade e rapidez. Buscamos oferecer uma experiência de qualidade em cada pedido, unindo sabor, energia e conveniência.</p>
 
-<script>
-function testar() {
-    fetch("http://localhost:5000/")
-        .then(res => res.text())
-        .then(data => {
-            document.getElementById("resposta").innerText = data;
-        });
-}
-</script>
+        <p>Trabalhamos com ingredientes selecionados para garantir que cada tigela entregue tenha sabor marcante, frescor e qualidade. Nosso sistema foi desenvolvido para tornar seu pedido simples, rápido e eficiente, proporcionando mais comodidade no seu dia a dia.</p>
+
+        <p>Mais do que servir açaí, queremos oferecer uma experiência completa: desde a escolha dos produtos até a finalização do pedido, tudo pensado para ser ágil, moderno e satisfatório.</p>
+      </div>
+
+      <img src="img/quemsomos.jpg" alt="Quem somos">
+    </div>
+  </section>
+
+  <!-- PRODUTOS -->
+  <section class="produtos">
+    <h2>Nossos Açaís</h2>
+    <p>Deliciosas opções preparadas com ingredientes frescos e naturais</p>
+
+    <div class="cards">
+      <div class="card card1">
+        <span>Açaí Natural</span>
+      </div>
+
+      <div class="card card2">
+        <span>Açaí com Frutas</span>
+      </div>
+
+      <div class="card card3">
+        <span>Açaí com Granola</span>
+      </div>
+
+      <div class="card card4">
+        <span>Açaí Especial</span>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    function irParaPagina() {
+      window.location.href = "pedido.html";
+    }
+  </script>
 
 </body>
 </html>
