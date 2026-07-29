@@ -214,3 +214,6 @@ __marimo__/
 
 # Anotações pessoais de deploy (contém senha do painel)
 ANOTACOES-DEPLOY.md
+
+# Documentação técnica pessoal (não versionada)
+documentacao-tecnica.pdf
