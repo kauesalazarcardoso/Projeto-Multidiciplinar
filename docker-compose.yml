@@ -3,7 +3,7 @@ services:
   backend:
     build:
       context: ./backend
-    container_name: acai_backend
+    container_name: tcc_acai_backend
     ports:
       - "5000:5000"
     volumes:
@@ -17,7 +17,7 @@ services:
   frontend:
     build:
       context: ./frontend
-    container_name: acai_frontend
+    container_name: tcc_acai_frontend
     ports:
       - "8080:80"   # cliente
       - "8081:81"   # gestor
@@ -26,7 +26,7 @@ services:
 
   sqlite-web:
     image: coleifer/sqlite-web
-    container_name: acai_sqlite_web
+    container_name: tcc_acai_sqlite_web
     ports:
       - "8083:8080"
     volumes:
