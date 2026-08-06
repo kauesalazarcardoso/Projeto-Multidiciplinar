@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Açaí Express — Pedido</title>
   <link rel="stylesheet" href="../css/pedido.css">
+  <link rel="stylesheet" href="../css/chat.css">
 </head>
 <body>
   <header class="header">
@@ -14,6 +15,8 @@
       🛒 <span id="cart-count">0</span> Itens
     </button>
   </header>
+
+  <div id="horario-status" class="horario-status"></div>
 
   <div class="container">
     <div class="grid" id="produtos-grid"></div>
@@ -128,5 +131,7 @@
 
   <script src="https://sdk.mercadopago.com/js/v2"></script>
   <script src="/js/pedido.js?v=13"></script>
+  <script src="../js/horario-status.js"></script>
+  <script src="../js/chat.js"></script>
 </body>
 </html>

@@ -7,6 +7,8 @@ from routes.pedidos import pedidos_bp
 from routes.cardapio import cardapio_bp
 from routes.pagamentos import pagamentos_bp
 from routes.auth import auth_bp
+from routes.horario import horario_bp
+from routes.chatbot import chatbot_bp
 
 app = Flask(__name__)
 CORS(app)
@@ -15,6 +17,8 @@ app.register_blueprint(pedidos_bp)
 app.register_blueprint(cardapio_bp)
 app.register_blueprint(pagamentos_bp)
 app.register_blueprint(auth_bp)
+app.register_blueprint(horario_bp)
+app.register_blueprint(chatbot_bp)
 init_db()
 
 

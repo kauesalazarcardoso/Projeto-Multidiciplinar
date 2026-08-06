@@ -1,0 +1,140 @@
+#chat-widget {
+  --chat-primary: #4b1d8d;
+  --chat-accent: #27ae60;
+  font-family: 'Nunito', sans-serif;
+}
+
+#chat-bolha {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: var(--chat-primary);
+  color: white;
+  border: none;
+  font-size: 1.6rem;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#chat-bolha:hover { opacity: 0.9; }
+
+#chat-painel {
+  position: fixed;
+  bottom: 90px;
+  right: 20px;
+  width: 320px;
+  max-width: calc(100vw - 40px);
+  height: 420px;
+  max-height: calc(100vh - 120px);
+  background: white;
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#chat-cabecalho {
+  background: var(--chat-primary);
+  color: white;
+  padding: 14px 16px;
+  font-weight: bold;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#chat-fechar {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+#chat-mensagens {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #f7f5fb;
+}
+
+.chat-balao {
+  max-width: 80%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.chat-balao-bot {
+  align-self: flex-start;
+  background: white;
+  border: 1px solid #e5ddf5;
+  color: #333;
+  border-bottom-left-radius: 2px;
+}
+
+.chat-balao-user {
+  align-self: flex-end;
+  background: var(--chat-accent);
+  color: white;
+  border-bottom-right-radius: 2px;
+}
+
+.chat-digitando { opacity: 0.6; font-style: italic; }
+
+#chat-form {
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid #eee;
+  background: white;
+}
+
+#chat-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.88rem;
+  min-width: 0;
+}
+
+#chat-form button {
+  background: var(--chat-primary);
+  color: white;
+  border: none;
+  border-radius: 20px;
+  padding: 8px 16px;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+#chat-form button:hover { opacity: 0.9; }
+
+@media (max-width: 420px) {
+  #chat-painel {
+    right: 10px;
+    left: 10px;
+    width: auto;
+  }
+  #chat-bolha { right: 16px; }
+}

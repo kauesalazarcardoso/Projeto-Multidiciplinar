@@ -7,6 +7,14 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 from app import app as flask_app
 from database import init_db, OWNER_USUARIO_PADRAO, OWNER_SENHA_PADRAO
 import database
+import horario
+
+
+@pytest.fixture(autouse=True)
+def loja_aberta_por_padrao(monkeypatch):
+    """Os testes não devem depender do dia/hora real em que rodam. Por padrão
+    a loja está "aberta"; testes de horário/fechamento sobrescrevem isso."""
+    monkeypatch.setattr(horario, "esta_aberto", lambda momento=None: (True, None))
 
 
 @pytest.fixture

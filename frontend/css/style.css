@@ -48,6 +48,56 @@ body {
   opacity: 0.9;
 }
 
+.hero .horario-status:empty { display: none; }
+
+.hero .horario-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 28px;
+  padding: 9px 20px 9px 15px;
+  border-radius: 30px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  font-family: 'Nunito', sans-serif;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.2);
+  backdrop-filter: blur(6px);
+}
+
+.hero .horario-status::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hero .horario-status.horario-aberto {
+  color: #d9ffe9;
+}
+
+.hero .horario-status.horario-aberto::before {
+  background: #2ed583;
+  box-shadow: 0 0 8px #2ed583;
+  animation: pulsarStatus 2s ease-in-out infinite;
+}
+
+.hero .horario-status.horario-fechado {
+  color: #ffd6e8;
+}
+
+.hero .horario-status.horario-fechado::before {
+  background: #ff5f96;
+  box-shadow: 0 0 8px #ff5f96;
+}
+
+@keyframes pulsarStatus {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.45; transform: scale(0.8); }
+}
+
 .hero button {
   background: linear-gradient(45deg, #a020f0, #ff00cc);
   border: none;

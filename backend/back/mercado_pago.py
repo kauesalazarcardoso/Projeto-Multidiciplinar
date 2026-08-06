@@ -112,3 +112,42 @@ def order_aprovada(order):
 
 def order_pix_pendente(order):
     return order.get("status") == "action_required"
+
+
+def criar_preferencia_checkout_pro(valor, email, external_reference, nome=None):
+    """Gera um link de pagamento hospedado (Checkout Pro) para o cliente
+    inserir os dados do cartão fora do chat. Usa a API de Preferences, que é
+    diferente da API de Orders usada em criar_order_pix/criar_order_cartao."""
+    body = {
+        "items": [{
+            "title": "Pedido Açaí Express",
+            "quantity": 1,
+            "unit_price": valor,
+            "currency_id": "BRL",
+        }],
+        "payer": _payer(email, nome),
+        "external_reference": external_reference,
+    }
+    resp = requests.post(
+        "https://api.mercadopago.com/checkout/preferences",
+        json=body, headers=_headers(), timeout=15,
+    )
+    pref = resp.json()
+    return {"id": pref.get("id"), "checkout_url": pref.get("init_point")}
+
+
+def buscar_pagamento_por_referencia(external_reference):
+    """Procura, via API de Payments (Checkout Pro não expõe uma 'order' como
+    a API de Orders), um pagamento aprovado com o external_reference dado.
+    Retorna o payment dict se encontrar um aprovado, senão None."""
+    resp = requests.get(
+        "https://api.mercadopago.com/v1/payments/search",
+        params={"external_reference": external_reference, "sort": "date_created", "criteria": "desc"},
+        headers={"Authorization": f"Bearer {_access_token()}"},
+        timeout=15,
+    )
+    resultados = resp.json().get("results", [])
+    for pagamento in resultados:
+        if pagamento.get("status") == "approved":
+            return pagamento
+    return None

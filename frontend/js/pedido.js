@@ -21,28 +21,51 @@ function limitarAcompanhamentos(produtoId) {
   });
   const contador = document.getElementById(`contador-${produtoId}`);
   if (contador) {
-    contador.textContent = `${marcados}/${MAX_ACOMPANHAMENTOS} acompanhamentos`;
+    contador.textContent = marcados > 0
+      ? `${marcados}/${MAX_ACOMPANHAMENTOS} escolhidos`
+      : 'toque para escolher';
     contador.style.color = marcados >= MAX_ACOMPANHAMENTOS ? '#e74c3c' : '#888';
   }
 }
 
+function toggleOpcoes(produtoId) {
+  const painel = document.getElementById(`opcoes-${produtoId}`);
+  const seta   = document.getElementById(`seta-${produtoId}`);
+  const abrir  = painel.style.display === 'none';
+  painel.style.display = abrir ? 'flex' : 'none';
+  seta.textContent = abrir ? '▴' : '▾';
+}
+
+function _opcaoComplemento(p, comp) {
+  return `
+    <label class="opcao-item">
+      <span class="opcao-nome">
+        <input type="checkbox" class="check-${p.id}" value="${comp.nome}" data-preco="${comp.preco}"
+          onchange="limitarAcompanhamentos(${p.id})">
+        ${comp.nome}
+      </span>
+      ${comp.preco > 0 ? `<span class="preco-extra">+R$ ${comp.preco.toFixed(2)}</span>` : ''}
+    </label>`;
+}
+
 function renderVitrine() {
+  const gratuitos = complementos.filter(c => c.preco === 0);
+  const pagos     = complementos.filter(c => c.preco > 0).sort((a, b) => a.preco - b.preco);
+
   document.getElementById('produtos-grid').innerHTML = produtos.map(p => `
     <div class="card">
       <h3>${p.nome}</h3>
       <span class="preco">R$ ${p.preco.toFixed(2)}</span>
-      <div style="font-size:0.78rem;color:#888;margin-bottom:6px">
-        Escolha até ${MAX_ACOMPANHAMENTOS} acompanhamentos:
-        <span id="contador-${p.id}" style="font-weight:bold;margin-left:4px">
-          0/${MAX_ACOMPANHAMENTOS} acompanhamentos
-        </span>
-      </div>
-      <div class="opcoes-container">
-        ${complementos.map(comp => `
-          <label class="opcao-item">
-            <input type="checkbox" class="check-${p.id}" value="${comp}"
-              onchange="limitarAcompanhamentos(${p.id})"> ${comp}
-          </label>`).join('')}
+      <button type="button" class="btn-toggle-opcoes" onclick="toggleOpcoes(${p.id})">
+        <span>🍫 Complementos <span id="contador-${p.id}" class="contador-opcoes">toque para escolher</span></span>
+        <span class="seta-toggle" id="seta-${p.id}">▾</span>
+      </button>
+      <div class="opcoes-container" id="opcoes-${p.id}" style="display:none">
+        <p class="opcoes-limite">Escolha até ${MAX_ACOMPANHAMENTOS} acompanhamentos</p>
+        ${gratuitos.length > 0 ? `<p class="opcoes-titulo">Grátis</p>` : ''}
+        ${gratuitos.map(comp => _opcaoComplemento(p, comp)).join('')}
+        ${pagos.length > 0 ? `<p class="opcoes-titulo">Com custo adicional</p>` : ''}
+        ${pagos.map(comp => _opcaoComplemento(p, comp)).join('')}
       </div>
       <button class="btn-add-vitrine" onclick="addToCart(${p.id})">Adicionar</button>
     </div>
@@ -50,14 +73,16 @@ function renderVitrine() {
 }
 
 function addToCart(id) {
-  const prod     = produtos.find(p => p.id === id);
-  const selected = Array.from(document.querySelectorAll(`.check-${id}:checked`)).map(c => c.value);
-  const itemKey  = prod.nome + ':' + selected.sort().join(',');
-  const existente = carrinho.find(i => i.key === itemKey);
+  const prod       = produtos.find(p => p.id === id);
+  const marcados   = Array.from(document.querySelectorAll(`.check-${id}:checked`));
+  const selected   = marcados.map(c => c.value);
+  const precoExtras = marcados.reduce((s, c) => s + (parseFloat(c.dataset.preco) || 0), 0);
+  const itemKey    = prod.nome + ':' + selected.sort().join(',');
+  const existente  = carrinho.find(i => i.key === itemKey);
   if (existente) {
     existente.qtd++;
   } else {
-    carrinho.push({ key: itemKey, nome: prod.nome, preco: prod.preco, extras: selected, qtd: 1 });
+    carrinho.push({ key: itemKey, nome: prod.nome, preco: prod.preco + precoExtras, extras: selected, qtd: 1 });
   }
   document.querySelectorAll(`.check-${id}`).forEach(c => { c.checked = false; c.disabled = false; });
   limitarAcompanhamentos(id);
@@ -388,8 +413,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       fetch(`${API}/complementos`),
     ]);
     produtos     = await resProd.json();
-    const comps  = await resComp.json();
-    complementos = comps.map(c => c.nome);
+    complementos = await resComp.json();
   } catch (e) {
     console.error('Erro ao carregar cardápio/complementos:', e);
     document.getElementById('produtos-grid').innerHTML =

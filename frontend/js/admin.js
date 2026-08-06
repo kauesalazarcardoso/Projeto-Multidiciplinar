@@ -104,39 +104,82 @@ document.getElementById('modal').addEventListener('click', e => {
 
 // ── COMPLEMENTOS ─────────────────────────────────────────────────
 
+let _complementosMap = {};
+
+function _linhaComplemento(c) {
+  const badge = c.preco > 0
+    ? `<span class="badge-preco badge-pago">+R$ ${c.preco.toFixed(2)}</span>`
+    : `<span class="badge-preco badge-gratis">Grátis</span>`;
+  return `
+    <tr>
+      <td>${c.id}</td>
+      <td>${c.nome}</td>
+      <td>${badge}</td>
+      <td class="acoes-td">
+        <button class="btn-editar" data-id="${c.id}">Editar</button>
+        <button class="btn-remover" data-id="${c.id}">✕</button>
+      </td>
+    </tr>`;
+}
+
+function _linhaSeparadora(texto) {
+  return `<tr class="linha-separadora"><td colspan="4">${texto}</td></tr>`;
+}
+
 async function carregarComplementos() {
   try {
     const res   = await fetch(`${API}/complementos`);
     const itens = await res.json();
-    const lista = document.getElementById('lista-complementos');
+    _complementosMap = {};
+    itens.forEach(c => { _complementosMap[c.id] = c; });
+
+    const tbody = document.getElementById('tabela-complementos');
     if (itens.length === 0) {
-      lista.innerHTML = '<p style="color:#999">Nenhum complemento cadastrado.</p>';
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999">Nenhum complemento cadastrado.</td></tr>';
       return;
     }
-    lista.innerHTML = itens.map(c => `
-      <span class="tag-complemento">
-        ${c.nome}
-        <button onclick="removerComplemento(${c.id})" title="Remover">✕</button>
-      </span>
-    `).join('');
+
+    const gratuitos = itens.filter(c => c.preco === 0);
+    const pagos     = itens.filter(c => c.preco > 0).sort((a, b) => a.preco - b.preco);
+
+    let html = '';
+    if (gratuitos.length > 0) {
+      html += _linhaSeparadora(`🆓 Grátis (${gratuitos.length})`);
+      html += gratuitos.map(_linhaComplemento).join('');
+    }
+    if (pagos.length > 0) {
+      html += _linhaSeparadora(`💰 Com custo adicional (${pagos.length})`);
+      html += pagos.map(_linhaComplemento).join('');
+    }
+    tbody.innerHTML = html;
   } catch (e) {
-    document.getElementById('lista-complementos').innerHTML =
-      '<p style="color:#e74c3c">Erro ao conectar ao servidor.</p>';
+    document.getElementById('tabela-complementos').innerHTML =
+      '<tr><td colspan="4" style="text-align:center;color:#e74c3c">Erro ao conectar ao servidor.</td></tr>';
   }
 }
 
+document.getElementById('tabela-complementos').addEventListener('click', e => {
+  const btn = e.target;
+  const id  = parseInt(btn.dataset.id);
+  if (btn.classList.contains('btn-editar')) abrirModalComplemento(id);
+  if (btn.classList.contains('btn-remover')) removerComplemento(id);
+});
+
 async function adicionarComplemento() {
-  const nome = document.getElementById('novo-complemento').value.trim();
-  const erro = document.getElementById('erro-complemento');
+  const nome  = document.getElementById('novo-complemento').value.trim();
+  const preco = parseFloat(document.getElementById('novo-complemento-preco').value) || 0;
+  const erro  = document.getElementById('erro-complemento');
   if (!nome) { erro.textContent = 'Digite o nome do complemento.'; return; }
+  if (preco < 0) { erro.textContent = 'Preço não pode ser negativo.'; return; }
   const res = await fetch(`${API}/complementos`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify({ nome }),
+    body: JSON.stringify({ nome, preco }),
   });
   if (tratarRespostaAuth(res)) return;
   if (res.ok) {
     erro.textContent = '';
     document.getElementById('novo-complemento').value = '';
+    document.getElementById('novo-complemento-preco').value = '0';
     carregarComplementos();
   } else {
     erro.textContent = (await res.json()).erro || 'Erro ao adicionar.';
@@ -150,6 +193,97 @@ async function removerComplemento(id) {
   carregarComplementos();
 }
 
+function abrirModalComplemento(id) {
+  const comp = _complementosMap[id];
+  if (!comp) return;
+  document.getElementById('editar-complemento-id').value    = comp.id;
+  document.getElementById('editar-complemento-nome').value  = comp.nome;
+  document.getElementById('editar-complemento-preco').value = comp.preco;
+  document.getElementById('erro-modal-complemento').textContent = '';
+  document.getElementById('modal-complemento').style.display = 'flex';
+}
+
+function fecharModalComplemento() {
+  document.getElementById('modal-complemento').style.display = 'none';
+}
+
+async function salvarEdicaoComplemento() {
+  const id    = parseInt(document.getElementById('editar-complemento-id').value);
+  const nome  = document.getElementById('editar-complemento-nome').value.trim();
+  const preco = parseFloat(document.getElementById('editar-complemento-preco').value) || 0;
+  const erro  = document.getElementById('erro-modal-complemento');
+  if (!nome) { erro.textContent = 'Digite o nome do complemento.'; return; }
+  if (preco < 0) { erro.textContent = 'Preço não pode ser negativo.'; return; }
+  const res = await fetch(`${API}/complementos/${id}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ nome, preco }),
+  });
+  if (tratarRespostaAuth(res)) return;
+  if (res.ok) { fecharModalComplemento(); carregarComplementos(); }
+  else { erro.textContent = (await res.json()).erro || 'Erro ao salvar.'; }
+}
+
+document.getElementById('modal-complemento').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-complemento')) fecharModalComplemento();
+});
+
+// ── HORÁRIO DE ATENDIMENTO ─────────────────────────────────────────
+
+const DIAS_LABEL = {
+  segunda: 'Segunda', terca: 'Terça', quarta: 'Quarta', quinta: 'Quinta',
+  sexta: 'Sexta', sabado: 'Sábado', domingo: 'Domingo',
+};
+
+async function carregarHorarios() {
+  try {
+    const res  = await fetch(`${API}/horario`);
+    const data = await res.json();
+    const tbody = document.getElementById('tabela-horarios');
+    tbody.innerHTML = data.horarios.map(h => `
+      <tr data-dia="${h.dia}">
+        <td>${DIAS_LABEL[h.dia] || h.dia}</td>
+        <td><input type="time" class="input-abre" value="${h.abre}" ${h.fechado ? 'disabled' : ''}></td>
+        <td><input type="time" class="input-fecha" value="${h.fecha}" ${h.fechado ? 'disabled' : ''}></td>
+        <td><input type="checkbox" class="input-fechado" ${h.fechado ? 'checked' : ''}></td>
+        <td class="acoes-td"><button class="btn-editar btn-salvar-horario" data-dia="${h.dia}">Salvar</button></td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    document.getElementById('tabela-horarios').innerHTML =
+      '<tr><td colspan="5" style="text-align:center;color:#e74c3c">Erro ao conectar ao servidor.</td></tr>';
+  }
+}
+
+document.getElementById('tabela-horarios').addEventListener('change', e => {
+  if (!e.target.classList.contains('input-fechado')) return;
+  const tr = e.target.closest('tr');
+  tr.querySelector('.input-abre').disabled  = e.target.checked;
+  tr.querySelector('.input-fecha').disabled = e.target.checked;
+});
+
+document.getElementById('tabela-horarios').addEventListener('click', async e => {
+  if (!e.target.classList.contains('btn-salvar-horario')) return;
+  const tr  = e.target.closest('tr');
+  const dia = e.target.dataset.dia;
+  const abre    = tr.querySelector('.input-abre').value;
+  const fecha   = tr.querySelector('.input-fecha').value;
+  const fechado = tr.querySelector('.input-fechado').checked;
+  const res = await fetch(`${API}/horario/${dia}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ abre, fecha, fechado }),
+  });
+  if (tratarRespostaAuth(res)) return;
+  if (res.ok) {
+    const textoOriginal = e.target.textContent;
+    e.target.textContent = 'Salvo ✓';
+    setTimeout(() => { e.target.textContent = textoOriginal; }, 1500);
+  } else {
+    alert((await res.json()).erro || 'Erro ao salvar horário.');
+  }
+});
+
 // ── INIT ─────────────────────────────────────────────────────────
 carregarCardapio();
 carregarComplementos();
+carregarHorarios();

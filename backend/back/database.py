@@ -29,6 +29,17 @@ _COMPLEMENTOS_INICIAIS = [
     "Ovomaltine", "Bis", "Kiwi",
 ]
 
+_HORARIOS_INICIAIS = [
+    # dia,      abre,    fecha,   fechado
+    ("segunda", "13:30", "22:00", 1),
+    ("terca",   "13:30", "22:00", 0),
+    ("quarta",  "13:30", "22:00", 0),
+    ("quinta",  "13:30", "22:00", 0),
+    ("sexta",   "13:30", "22:00", 0),
+    ("sabado",  "13:30", "22:00", 0),
+    ("domingo", "13:30", "22:00", 0),
+]
+
 
 @contextmanager
 def get_conn():
@@ -64,6 +75,30 @@ def _migrar_pedidos(conn):
             conn.execute(f"ALTER TABLE pedidos ADD COLUMN {coluna} {definicao}")
 
 
+_CHAT_SESSOES_COLUNAS_NOVAS = {
+    "ultima_interaction_id": "TEXT",
+}
+
+
+def _migrar_chat_sessoes(conn):
+    colunas_atuais = {row["name"] for row in conn.execute("PRAGMA table_info(chat_sessoes)")}
+    for coluna, definicao in _CHAT_SESSOES_COLUNAS_NOVAS.items():
+        if coluna not in colunas_atuais:
+            conn.execute(f"ALTER TABLE chat_sessoes ADD COLUMN {coluna} {definicao}")
+
+
+_COMPLEMENTOS_COLUNAS_NOVAS = {
+    "preco": "REAL NOT NULL DEFAULT 0",
+}
+
+
+def _migrar_complementos(conn):
+    colunas_atuais = {row["name"] for row in conn.execute("PRAGMA table_info(complementos)")}
+    for coluna, definicao in _COMPLEMENTOS_COLUNAS_NOVAS.items():
+        if coluna not in colunas_atuais:
+            conn.execute(f"ALTER TABLE complementos ADD COLUMN {coluna} {definicao}")
+
+
 def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     with get_conn() as conn:
@@ -96,10 +131,12 @@ def init_db():
         """)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS complementos (
-                id   INTEGER PRIMARY KEY AUTOINCREMENT,
-                nome TEXT    NOT NULL UNIQUE
+                id    INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome  TEXT    NOT NULL UNIQUE,
+                preco REAL    NOT NULL DEFAULT 0
             )
         """)
+        _migrar_complementos(conn)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS cartoes (
                 id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -134,6 +171,23 @@ def init_db():
                 criado_em TEXT    NOT NULL
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS horarios (
+                dia     TEXT    PRIMARY KEY,
+                abre    TEXT    NOT NULL,
+                fecha   TEXT    NOT NULL,
+                fechado INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS chat_sessoes (
+                id                    TEXT PRIMARY KEY,
+                ultima_interaction_id TEXT,
+                criado_em             TEXT NOT NULL,
+                atualizado_em         TEXT NOT NULL
+            )
+        """)
+        _migrar_chat_sessoes(conn)
         if conn.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0] == 0:
             usuario = os.environ.get("OWNER_USUARIO", OWNER_USUARIO_PADRAO)
             senha = os.environ.get("OWNER_SENHA", OWNER_SENHA_PADRAO)
@@ -150,5 +204,10 @@ def init_db():
             conn.executemany(
                 "INSERT INTO complementos (nome) VALUES (?)",
                 [(n,) for n in _COMPLEMENTOS_INICIAIS]
+            )
+        if conn.execute("SELECT COUNT(*) FROM horarios").fetchone()[0] == 0:
+            conn.executemany(
+                "INSERT INTO horarios (dia, abre, fecha, fechado) VALUES (?, ?, ?, ?)",
+                _HORARIOS_INICIAIS
             )
     print("Banco SQLite inicializado!")
