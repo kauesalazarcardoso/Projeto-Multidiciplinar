@@ -1,9 +1,11 @@
-import sqlite3
 import os
 from contextlib import contextmanager
+
+import psycopg
+from psycopg.rows import dict_row
 from werkzeug.security import generate_password_hash
 
-DB_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'db', 'pedidos.db')
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
 OWNER_USUARIO_PADRAO = "admin"
 OWNER_SENHA_PADRAO = "acai2026"
@@ -43,8 +45,7 @@ _HORARIOS_INICIAIS = [
 
 @contextmanager
 def get_conn():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
     try:
         yield conn
         conn.commit()
@@ -69,10 +70,8 @@ _PEDIDOS_COLUNAS_NOVAS = {
 
 
 def _migrar_pedidos(conn):
-    colunas_atuais = {row["name"] for row in conn.execute("PRAGMA table_info(pedidos)")}
     for coluna, definicao in _PEDIDOS_COLUNAS_NOVAS.items():
-        if coluna not in colunas_atuais:
-            conn.execute(f"ALTER TABLE pedidos ADD COLUMN {coluna} {definicao}")
+        conn.execute(f"ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS {coluna} {definicao}")
 
 
 _CHAT_SESSOES_COLUNAS_NOVAS = {
@@ -81,10 +80,8 @@ _CHAT_SESSOES_COLUNAS_NOVAS = {
 
 
 def _migrar_chat_sessoes(conn):
-    colunas_atuais = {row["name"] for row in conn.execute("PRAGMA table_info(chat_sessoes)")}
     for coluna, definicao in _CHAT_SESSOES_COLUNAS_NOVAS.items():
-        if coluna not in colunas_atuais:
-            conn.execute(f"ALTER TABLE chat_sessoes ADD COLUMN {coluna} {definicao}")
+        conn.execute(f"ALTER TABLE chat_sessoes ADD COLUMN IF NOT EXISTS {coluna} {definicao}")
 
 
 _COMPLEMENTOS_COLUNAS_NOVAS = {
@@ -93,18 +90,15 @@ _COMPLEMENTOS_COLUNAS_NOVAS = {
 
 
 def _migrar_complementos(conn):
-    colunas_atuais = {row["name"] for row in conn.execute("PRAGMA table_info(complementos)")}
     for coluna, definicao in _COMPLEMENTOS_COLUNAS_NOVAS.items():
-        if coluna not in colunas_atuais:
-            conn.execute(f"ALTER TABLE complementos ADD COLUMN {coluna} {definicao}")
+        conn.execute(f"ALTER TABLE complementos ADD COLUMN IF NOT EXISTS {coluna} {definicao}")
 
 
 def init_db():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     with get_conn() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS pedidos (
-                id              INTEGER PRIMARY KEY,
+                id              BIGINT  PRIMARY KEY,
                 cliente         TEXT    NOT NULL,
                 itens           TEXT    NOT NULL,
                 total           REAL    NOT NULL,
@@ -124,14 +118,14 @@ def init_db():
         _migrar_pedidos(conn)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS cardapio (
-                id    INTEGER PRIMARY KEY AUTOINCREMENT,
+                id    SERIAL  PRIMARY KEY,
                 nome  TEXT    NOT NULL,
                 preco REAL    NOT NULL
             )
         """)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS complementos (
-                id    INTEGER PRIMARY KEY AUTOINCREMENT,
+                id    SERIAL  PRIMARY KEY,
                 nome  TEXT    NOT NULL UNIQUE,
                 preco REAL    NOT NULL DEFAULT 0
             )
@@ -139,7 +133,7 @@ def init_db():
         _migrar_complementos(conn)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS cartoes (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                id           SERIAL  PRIMARY KEY,
                 token        TEXT    NOT NULL UNIQUE,
                 nome_titular TEXT    NOT NULL,
                 ultimos4     TEXT    NOT NULL,
@@ -150,7 +144,7 @@ def init_db():
         """)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS pix_cobrancas (
-                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                id         SERIAL  PRIMARY KEY,
                 txid       TEXT    NOT NULL UNIQUE,
                 valor      REAL    NOT NULL,
                 copia_cola TEXT    NOT NULL,
@@ -159,7 +153,7 @@ def init_db():
         """)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS usuarios (
-                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                id         SERIAL  PRIMARY KEY,
                 usuario    TEXT    NOT NULL UNIQUE,
                 senha_hash TEXT    NOT NULL
             )
@@ -188,26 +182,35 @@ def init_db():
             )
         """)
         _migrar_chat_sessoes(conn)
-        if conn.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0] == 0:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS push_subscriptions (
+                id         SERIAL  PRIMARY KEY,
+                endpoint   TEXT    NOT NULL UNIQUE,
+                p256dh     TEXT    NOT NULL,
+                auth       TEXT    NOT NULL,
+                criado_em  TEXT    NOT NULL
+            )
+        """)
+        if conn.execute("SELECT COUNT(*) AS c FROM usuarios").fetchone()["c"] == 0:
             usuario = os.environ.get("OWNER_USUARIO", OWNER_USUARIO_PADRAO)
             senha = os.environ.get("OWNER_SENHA", OWNER_SENHA_PADRAO)
             conn.execute(
-                "INSERT INTO usuarios (usuario, senha_hash) VALUES (?, ?)",
+                "INSERT INTO usuarios (usuario, senha_hash) VALUES (%s, %s)",
                 (usuario, generate_password_hash(senha))
             )
-        if conn.execute("SELECT COUNT(*) FROM cardapio").fetchone()[0] == 0:
-            conn.executemany(
-                "INSERT INTO cardapio (nome, preco) VALUES (?, ?)",
+        if conn.execute("SELECT COUNT(*) AS c FROM cardapio").fetchone()["c"] == 0:
+            conn.cursor().executemany(
+                "INSERT INTO cardapio (nome, preco) VALUES (%s, %s)",
                 _ITENS_INICIAIS
             )
-        if conn.execute("SELECT COUNT(*) FROM complementos").fetchone()[0] == 0:
-            conn.executemany(
-                "INSERT INTO complementos (nome) VALUES (?)",
+        if conn.execute("SELECT COUNT(*) AS c FROM complementos").fetchone()["c"] == 0:
+            conn.cursor().executemany(
+                "INSERT INTO complementos (nome) VALUES (%s)",
                 [(n,) for n in _COMPLEMENTOS_INICIAIS]
             )
-        if conn.execute("SELECT COUNT(*) FROM horarios").fetchone()[0] == 0:
-            conn.executemany(
-                "INSERT INTO horarios (dia, abre, fecha, fechado) VALUES (?, ?, ?, ?)",
+        if conn.execute("SELECT COUNT(*) AS c FROM horarios").fetchone()["c"] == 0:
+            conn.cursor().executemany(
+                "INSERT INTO horarios (dia, abre, fecha, fechado) VALUES (%s, %s, %s, %s)",
                 _HORARIOS_INICIAIS
             )
-    print("Banco SQLite inicializado!")
+    print("Banco PostgreSQL inicializado!")

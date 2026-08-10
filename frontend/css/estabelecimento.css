@@ -77,6 +77,15 @@ body {
 .pedido-card.a_caminho  { border-left-color: var(--secondary); }
 .pedido-card.entregue   { border-left-color: var(--accent); opacity: 0.7; }
 
+@keyframes pulse-novo {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(39, 174, 96, 0.6); }
+  50%      { box-shadow: 0 0 0 12px rgba(39, 174, 96, 0); }
+}
+
+.pedido-card.novo {
+  animation: pulse-novo 1.5s ease-in-out 3;
+}
+
 .pedido-topo {
   display: flex;
   justify-content: space-between;

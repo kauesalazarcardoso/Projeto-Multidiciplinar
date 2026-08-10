@@ -2,9 +2,17 @@ import uuid
 
 from flask import Blueprint, jsonify, request
 
+import horario as horario_mod
 import mercado_pago
 
 pagamentos_bp = Blueprint('pagamentos', __name__)
+
+
+def _checar_aberto():
+    aberto, motivo = horario_mod.esta_aberto()
+    if not aberto:
+        return jsonify({"erro": "Estabelecimento fechado no momento", "motivo": motivo}), 403
+    return None
 
 
 def _validar_valor_email(data):
@@ -35,6 +43,10 @@ def _erro_mp(order):
 
 @pagamentos_bp.route("/pagamentos/pix", methods=["POST"])
 def gerar_cobranca_pix():
+    erro_aberto = _checar_aberto()
+    if erro_aberto:
+        return erro_aberto
+
     data = request.get_json()
 
     erro = _validar_valor_email(data)
@@ -61,6 +73,10 @@ def gerar_cobranca_pix():
 
 @pagamentos_bp.route("/pagamentos/cartao", methods=["POST"])
 def processar_cartao():
+    erro_aberto = _checar_aberto()
+    if erro_aberto:
+        return erro_aberto
+
     data = request.get_json()
 
     erro = _validar_valor_email(data)

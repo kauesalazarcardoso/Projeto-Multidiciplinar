@@ -1,17 +1,38 @@
 services:
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: tcc_acai_postgres
+    environment:
+      - POSTGRES_USER=acai
+      - POSTGRES_PASSWORD=acai
+      - POSTGRES_DB=acai
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U acai -d acai"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
     container_name: tcc_acai_backend
     ports:
       - "5000:5000"
-    volumes:
-      - ./db:/db
     environment:
       - TZ=America/Sao_Paulo
+      - DATABASE_URL=postgresql://acai:acai@postgres:5432/acai
     env_file:
       - ./backend/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   frontend:
@@ -24,12 +45,12 @@ services:
       - "8082:82"   # admin
     restart: unless-stopped
 
-  sqlite-web:
-    image: coleifer/sqlite-web
-    container_name: tcc_acai_sqlite_web
+  adminer:
+    image: adminer
+    container_name: tcc_acai_adminer
     ports:
       - "8083:8080"
-    volumes:
-      - ./db:/data
-    command: sqlite_web --host 0.0.0.0 /data/pedidos.db
     restart: unless-stopped
+
+volumes:
+  postgres_data:

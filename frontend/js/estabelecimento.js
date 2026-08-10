@@ -52,6 +52,116 @@ function linkWhatsapp(pedido) {
   return `https://wa.me/${numero}?text=${encodeURIComponent(mensagem)}`;
 }
 
+// ── ALERTA DE PEDIDO NOVO (som + destaque visual + Notification) ──
+let audioCtx = null;
+let idsConhecidos = null;
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function tocarSomNovoPedido() {
+  try {
+    const ctx = getAudioCtx();
+    if (ctx.state === 'suspended') ctx.resume();
+    const tocarNota = (freq, inicio, duracao) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime + inicio);
+      gain.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + inicio + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + inicio + duracao);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime + inicio);
+      osc.stop(ctx.currentTime + inicio + duracao + 0.05);
+    };
+    tocarNota(880, 0, 0.15);
+    tocarNota(1174.66, 0.18, 0.2);
+  } catch (e) {
+    console.error('Erro ao tocar som de notificação:', e);
+  }
+}
+
+function notificarNovosPedidos(novos) {
+  // O aviso quando a aba está em segundo plano ou fechada é responsabilidade
+  // do push (Service Worker); aqui só cuidamos do feedback com a aba aberta.
+  tocarSomNovoPedido();
+}
+
+// ── PUSH NOTIFICATION (funciona com a aba/navegador fechado) ──────
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+function suportaPush() {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+async function inscricaoAtiva() {
+  if (!suportaPush()) return null;
+  const reg = await navigator.serviceWorker.getRegistration();
+  if (!reg) return null;
+  return reg.pushManager.getSubscription();
+}
+
+async function atualizarBotaoNotificacao() {
+  const btn = document.getElementById('btn-notif');
+  if (!btn) return;
+  if (!suportaPush()) {
+    btn.style.display = 'none';
+    return;
+  }
+  const sub = await inscricaoAtiva();
+  if (sub && Notification.permission === 'granted') {
+    btn.textContent = '🔔 Notificações ativadas';
+    btn.disabled = true;
+  } else {
+    btn.textContent = '🔔 Ativar notificações';
+    btn.disabled = false;
+  }
+}
+
+async function ativarNotificacoes() {
+  getAudioCtx().resume().catch(() => {});
+
+  if (!suportaPush()) {
+    alert('Seu navegador não suporta notificações push.');
+    return;
+  }
+  try {
+    const permissao = await Notification.requestPermission();
+    if (permissao !== 'granted') return;
+
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.ready;
+
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      const { vapid_public_key } = await fetch(`${API}/config`).then(r => r.json());
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapid_public_key),
+      });
+    }
+
+    await fetch(`${API}/push/subscribe`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body:    JSON.stringify(sub.toJSON()),
+    });
+  } catch (e) {
+    console.error('Erro ao ativar notificações:', e);
+    alert('Não foi possível ativar as notificações. Tente novamente.');
+  } finally {
+    atualizarBotaoNotificacao();
+  }
+}
+
 // ── BUSCA TODOS OS PEDIDOS ────────────────────────────────────
 async function fetchPedidos() {
   try {
@@ -118,7 +228,18 @@ async function render() {
         <h2>Nenhum pedido ainda</h2>
         <p>Os pedidos dos clientes aparecerão aqui automaticamente.</p>
       </div>`;
+    idsConhecidos = new Set();
     return;
+  }
+
+  const idsAtuais = new Set(pedidos.map(p => p.id));
+  const novosIds  = idsConhecidos === null
+    ? new Set()
+    : new Set(pedidos.filter(p => !idsConhecidos.has(p.id)).map(p => p.id));
+  idsConhecidos = idsAtuais;
+
+  if (novosIds.size > 0) {
+    notificarNovosPedidos(pedidos.filter(p => novosIds.has(p.id)));
   }
 
   // Mais recentes primeiro, entregues por último
@@ -158,11 +279,12 @@ async function render() {
     }[p.status];
 
     // Exibe apenas os últimos 5 dígitos do ID para leitura rápida
-    const idCurto = String(p.id).slice(-5);
-    const linkWA  = linkWhatsapp(p);
+    const idCurto   = String(p.id).slice(-5);
+    const linkWA    = linkWhatsapp(p);
+    const classeNovo = novosIds.has(p.id) ? ' novo' : '';
 
     return `
-      <div class="pedido-card ${p.status}">
+      <div class="pedido-card ${p.status}${classeNovo}">
         <div class="pedido-topo">
           <h2>Pedido #${idCurto} — ${p.hora}</h2>
           <span class="badge ${p.status}">${LABELS[p.status]}</span>
@@ -207,5 +329,6 @@ async function render() {
 }
 
 // Atualiza a cada 5 segundos para pegar novos pedidos
+atualizarBotaoNotificacao();
 render();
 setInterval(render, 5000);

@@ -25,7 +25,7 @@ def login_required(fn):
             return jsonify({"erro": "Autenticação necessária"}), 401
         with get_conn() as conn:
             sessao = conn.execute(
-                "SELECT usuario FROM sessoes WHERE token = ?", (token,)
+                "SELECT usuario FROM sessoes WHERE token = %s", (token,)
             ).fetchone()
         if not sessao:
             return jsonify({"erro": "Sessão inválida ou expirada"}), 401
@@ -41,7 +41,7 @@ def login():
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT usuario, senha_hash FROM usuarios WHERE usuario = ?",
+            "SELECT usuario, senha_hash FROM usuarios WHERE usuario = %s",
             (str(data["usuario"]).strip(),)
         ).fetchone()
 
@@ -50,7 +50,7 @@ def login():
 
         token = uuid.uuid4().hex
         conn.execute(
-            "INSERT INTO sessoes (token, usuario, criado_em) VALUES (?, ?, ?)",
+            "INSERT INTO sessoes (token, usuario, criado_em) VALUES (%s, %s, %s)",
             (token, row["usuario"], datetime.now().isoformat())
         )
 
@@ -62,5 +62,5 @@ def logout():
     token = _token_da_requisicao()
     if token:
         with get_conn() as conn:
-            conn.execute("DELETE FROM sessoes WHERE token = ?", (token,))
+            conn.execute("DELETE FROM sessoes WHERE token = %s", (token,))
     return jsonify({"ok": True})

@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify, request
+from psycopg.errors import UniqueViolation
 from database import get_conn
 from routes.auth import login_required
 
@@ -24,8 +25,11 @@ def criar_item():
     if not nome:
         return jsonify({"erro": "Nome não pode ser vazio"}), 400
     with get_conn() as conn:
-        cur = conn.execute("INSERT INTO cardapio (nome, preco) VALUES (?, ?)", (nome, data["preco"]))
-        item_id = cur.lastrowid
+        cur = conn.execute(
+            "INSERT INTO cardapio (nome, preco) VALUES (%s, %s) RETURNING id",
+            (nome, data["preco"])
+        )
+        item_id = cur.fetchone()["id"]
     return jsonify({"id": item_id, "nome": nome, "preco": data["preco"]}), 201
 
 
@@ -42,7 +46,7 @@ def editar_item(item_id):
         return jsonify({"erro": "Nome não pode ser vazio"}), 400
     with get_conn() as conn:
         cur = conn.execute(
-            "UPDATE cardapio SET nome = ?, preco = ? WHERE id = ?",
+            "UPDATE cardapio SET nome = %s, preco = %s WHERE id = %s",
             (nome, data["preco"], item_id)
         )
         if cur.rowcount == 0:
@@ -54,7 +58,7 @@ def editar_item(item_id):
 @login_required
 def remover_item(item_id):
     with get_conn() as conn:
-        cur = conn.execute("DELETE FROM cardapio WHERE id = ?", (item_id,))
+        cur = conn.execute("DELETE FROM cardapio WHERE id = %s", (item_id,))
         if cur.rowcount == 0:
             return jsonify({"erro": "Item não encontrado"}), 404
     return jsonify({"deletado": item_id})
@@ -88,9 +92,12 @@ def criar_complemento():
         return erro_resp, status
     try:
         with get_conn() as conn:
-            cur = conn.execute("INSERT INTO complementos (nome, preco) VALUES (?, ?)", (nome, preco))
-            return jsonify({"id": cur.lastrowid, "nome": nome, "preco": preco}), 201
-    except Exception:
+            cur = conn.execute(
+                "INSERT INTO complementos (nome, preco) VALUES (%s, %s) RETURNING id",
+                (nome, preco)
+            )
+            return jsonify({"id": cur.fetchone()["id"], "nome": nome, "preco": preco}), 201
+    except UniqueViolation:
         return jsonify({"erro": "Complemento já existe"}), 409
 
 
@@ -107,12 +114,12 @@ def editar_complemento(comp_id):
     try:
         with get_conn() as conn:
             cur = conn.execute(
-                "UPDATE complementos SET nome = ?, preco = ? WHERE id = ?",
+                "UPDATE complementos SET nome = %s, preco = %s WHERE id = %s",
                 (nome, preco, comp_id)
             )
             if cur.rowcount == 0:
                 return jsonify({"erro": "Complemento não encontrado"}), 404
-    except Exception:
+    except UniqueViolation:
         return jsonify({"erro": "Já existe um complemento com esse nome"}), 409
     return jsonify({"id": comp_id, "nome": nome, "preco": preco})
 
@@ -121,7 +128,7 @@ def editar_complemento(comp_id):
 @login_required
 def remover_complemento(comp_id):
     with get_conn() as conn:
-        cur = conn.execute("DELETE FROM complementos WHERE id = ?", (comp_id,))
+        cur = conn.execute("DELETE FROM complementos WHERE id = %s", (comp_id,))
         if cur.rowcount == 0:
             return jsonify({"erro": "Complemento não encontrado"}), 404
     return jsonify({"deletado": comp_id})

@@ -15,7 +15,7 @@ chatbot_bp = Blueprint('chatbot', __name__)
 def _carregar_interaction_id(sessao_id):
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT ultima_interaction_id FROM chat_sessoes WHERE id = ?", (sessao_id,)
+            "SELECT ultima_interaction_id FROM chat_sessoes WHERE id = %s", (sessao_id,)
         ).fetchone()
     return row["ultima_interaction_id"] if row else None
 
@@ -23,16 +23,14 @@ def _carregar_interaction_id(sessao_id):
 def _salvar_interaction_id(sessao_id, interaction_id):
     agora = datetime.now().isoformat()
     with get_conn() as conn:
-        cur = conn.execute(
-            "UPDATE chat_sessoes SET ultima_interaction_id = ?, atualizado_em = ? WHERE id = ?",
-            (interaction_id, agora, sessao_id)
+        conn.execute(
+            "INSERT INTO chat_sessoes (id, ultima_interaction_id, criado_em, atualizado_em) "
+            "VALUES (%s, %s, %s, %s) "
+            "ON CONFLICT (id) DO UPDATE SET "
+            "ultima_interaction_id = EXCLUDED.ultima_interaction_id, "
+            "atualizado_em = EXCLUDED.atualizado_em",
+            (sessao_id, interaction_id, agora, agora)
         )
-        if cur.rowcount == 0:
-            conn.execute(
-                "INSERT INTO chat_sessoes (id, ultima_interaction_id, criado_em, atualizado_em) "
-                "VALUES (?, ?, ?, ?)",
-                (sessao_id, interaction_id, agora, agora)
-            )
 
 
 @chatbot_bp.route("/chatbot/mensagem", methods=["POST"])

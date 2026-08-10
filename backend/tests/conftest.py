@@ -17,10 +17,27 @@ def loja_aberta_por_padrao(monkeypatch):
     monkeypatch.setattr(horario, "esta_aberto", lambda momento=None: (True, None))
 
 
+TEST_DATABASE_URL = os.environ.get(
+    "TEST_DATABASE_URL", "postgresql://acai:acai@localhost:5432/acai_test"
+)
+
+_TABELAS = (
+    "pedidos", "cardapio", "complementos", "cartoes", "pix_cobrancas",
+    "usuarios", "sessoes", "horarios", "chat_sessoes",
+)
+
+
+def _limpar_tabelas():
+    with database.get_conn() as conn:
+        conn.execute(f"TRUNCATE {', '.join(_TABELAS)} RESTART IDENTITY CASCADE")
+
+
 @pytest.fixture
-def client(monkeypatch, tmp_path):
-    monkeypatch.setattr(database, "DB_PATH", str(tmp_path / "test.db"))
+def client(monkeypatch):
+    monkeypatch.setattr(database, "DATABASE_URL", TEST_DATABASE_URL)
     flask_app.config['TESTING'] = True
+    init_db()
+    _limpar_tabelas()
     init_db()
     with flask_app.test_client() as client:
         yield client

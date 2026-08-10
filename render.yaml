@@ -1,3 +1,9 @@
+databases:
+  - name: acai-db
+    databaseName: acai
+    user: acai
+    plan: free
+
 services:
   - type: web
     name: acai-express-backend
@@ -8,6 +14,10 @@ services:
     envVars:
       - key: TZ
         value: America/Sao_Paulo
+      - key: DATABASE_URL
+        fromDatabase:
+          name: acai-db
+          property: connectionString
       - key: MP_ACCESS_TOKEN
         sync: false
       - key: MP_PUBLIC_KEY
@@ -18,3 +28,9 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        value: BFuan3U92UOwmTmJEFJT88aoARZTpjZ76PY4zK3p5lxYMJ65zK21A-Xd9fMuG7d_GH8q6m6OSi86zHyP8PWXEc4
+      - key: VAPID_CONTATO
+        value: mailto:kauesalazarcardoso123@gmail.com

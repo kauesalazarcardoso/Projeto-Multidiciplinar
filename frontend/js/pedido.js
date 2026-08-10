@@ -389,10 +389,18 @@ async function confirmarPedido() {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify(payload)
     });
-
-    if (!res.ok) throw new Error(`Erro ${res.status}`);
-
     const data = await res.json();
+
+    if (!res.ok) {
+      if (data.motivo === 'fechado_hoje') {
+        throw new Error('O estabelecimento está fechado hoje. Tente novamente em outro dia.');
+      }
+      if (data.motivo === 'fora_do_horario') {
+        throw new Error('Fora do horário de atendimento no momento.');
+      }
+      throw new Error(data.erro || `Erro ${res.status}`);
+    }
+
     salvarPedidoLocal(data.id);
     window.location.href = `acompanhar.html?id=${data.id}`;
 

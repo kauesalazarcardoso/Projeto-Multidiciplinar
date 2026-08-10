@@ -42,7 +42,7 @@ def atualizar_horario(dia):
 
     with get_conn() as conn:
         conn.execute(
-            "UPDATE horarios SET abre = ?, fecha = ?, fechado = ? WHERE dia = ?",
+            "UPDATE horarios SET abre = %s, fecha = %s, fechado = %s WHERE dia = %s",
             (data["abre"], data["fecha"], int(fechado), dia)
         )
 

@@ -6,6 +6,7 @@ from database import get_conn
 from routes.auth import login_required
 import mercado_pago
 import horario as horario_mod
+import push
 
 pedidos_bp = Blueprint('pedidos', __name__)
 
@@ -47,6 +48,15 @@ def _serializar_pedido(row):
     }
 
 
+def _notificar_gestor(pedido_id, cliente, total):
+    nome = cliente.get("nome", "Cliente")
+    push.enviar_para_todos(
+        "Novo pedido recebido!",
+        f"Pedido #{str(pedido_id)[-5:]} — {nome} — R$ {total:.2f}",
+        f"pedido-{pedido_id}",
+    )
+
+
 def _sincronizar_pagamento_pendente(row):
     """Se o pedido ainda está pendente_pagamento (Pix), consulta a Mercado
     Pago e atualiza o status local caso já tenha sido aprovado."""
@@ -59,11 +69,13 @@ def _sincronizar_pagamento_pendente(row):
 
     with get_conn() as conn:
         conn.execute(
-            "UPDATE pedidos SET status = 'aguardando' WHERE id = ?", (row["id"],)
+            "UPDATE pedidos SET status = 'aguardando' WHERE id = %s", (row["id"],)
         )
         row = conn.execute(
-            f"SELECT {_COLUNAS_PEDIDO} FROM pedidos WHERE id = ?", (row["id"],)
+            f"SELECT {_COLUNAS_PEDIDO} FROM pedidos WHERE id = %s", (row["id"],)
         ).fetchone()
+
+    _notificar_gestor(row["id"], json.loads(row["cliente"]), row["total"])
 
     return row
 
@@ -74,7 +86,7 @@ def listar_pedidos():
     with get_conn() as conn:
         rows = conn.execute(
             f"SELECT {_COLUNAS_PEDIDO} FROM pedidos "
-            "WHERE status != ? ORDER BY id DESC",
+            "WHERE status != %s ORDER BY id DESC",
             (STATUS_PENDENTE_PAGAMENTO,)
         ).fetchall()
     return jsonify([_serializar_pedido(r) for r in rows])
@@ -84,7 +96,7 @@ def listar_pedidos():
 def buscar_pedido(pedido_id):
     with get_conn() as conn:
         row = conn.execute(
-            f"SELECT {_COLUNAS_PEDIDO} FROM pedidos WHERE id = ?",
+            f"SELECT {_COLUNAS_PEDIDO} FROM pedidos WHERE id = %s",
             (pedido_id,)
         ).fetchone()
 
@@ -120,7 +132,7 @@ def _inserir_pedido(data, forma_pagamento, status_pedido, *, cartao_ultimos4=Non
             "INSERT INTO pedidos "
             "(id, cliente, itens, total, status, hora, forma_pagamento, taxa_entrega, "
             "cartao_ultimos4, cartao_bandeira, mp_order_id, pix_qr_base64, pix_copia_cola, troco_para) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (
                 pedido_id,
                 json.dumps(data["cliente"], ensure_ascii=False),
@@ -138,6 +150,9 @@ def _inserir_pedido(data, forma_pagamento, status_pedido, *, cartao_ultimos4=Non
                 troco_para,
             )
         )
+
+    if status_pedido != STATUS_PENDENTE_PAGAMENTO:
+        _notificar_gestor(pedido_id, data["cliente"], data["total"])
 
     return {"id": pedido_id, "hora": hora, "status": status_pedido}
 
@@ -216,7 +231,7 @@ def criar_pedido():
 def avancar_status(pedido_id):
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT status FROM pedidos WHERE id = ?", (pedido_id,)
+            "SELECT status FROM pedidos WHERE id = %s", (pedido_id,)
         ).fetchone()
 
         if not row:
@@ -232,7 +247,7 @@ def avancar_status(pedido_id):
 
         novo_status = ORDEM_STATUS[idx + 1]
         conn.execute(
-            "UPDATE pedidos SET status = ? WHERE id = ?", (novo_status, pedido_id)
+            "UPDATE pedidos SET status = %s WHERE id = %s", (novo_status, pedido_id)
         )
 
     return jsonify({"id": pedido_id, "status": novo_status})

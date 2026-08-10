@@ -25,7 +25,7 @@ def esta_aberto(momento=None):
     dia = _dia_da_semana(momento)
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT abre, fecha, fechado FROM horarios WHERE dia = ?", (dia,)
+            "SELECT abre, fecha, fechado FROM horarios WHERE dia = %s", (dia,)
         ).fetchone()
 
     if not row or row["fechado"]:

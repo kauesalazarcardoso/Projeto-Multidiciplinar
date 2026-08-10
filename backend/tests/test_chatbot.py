@@ -75,7 +75,7 @@ def test_tool_criar_pedido_sucesso(client):
 
     from database import get_conn
     with get_conn() as conn:
-        row = conn.execute("SELECT id FROM pedidos WHERE id = ?", (resultado["id"],)).fetchone()
+        row = conn.execute("SELECT id FROM pedidos WHERE id = %s", (resultado["id"],)).fetchone()
     assert row is not None
 
 
@@ -213,7 +213,7 @@ def test_endpoint_sem_sessao_cria_nova(client, monkeypatch):
     from database import get_conn
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT ultima_interaction_id FROM chat_sessoes WHERE id = ?", (data["sessao_id"],)
+            "SELECT ultima_interaction_id FROM chat_sessoes WHERE id = %s", (data["sessao_id"],)
         ).fetchone()
     assert row is not None
     assert row["ultima_interaction_id"] == "int_1"
@@ -233,7 +233,7 @@ def test_endpoint_reusa_sessao_e_encadeia_interacoes(client, monkeypatch):
     from database import get_conn
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT ultima_interaction_id FROM chat_sessoes WHERE id = ?", (sessao_id,)
+            "SELECT ultima_interaction_id FROM chat_sessoes WHERE id = %s", (sessao_id,)
         ).fetchone()
     assert row["ultima_interaction_id"] == "int_2"
 

@@ -9,6 +9,7 @@ from routes.pagamentos import pagamentos_bp
 from routes.auth import auth_bp
 from routes.horario import horario_bp
 from routes.chatbot import chatbot_bp
+from routes.push import push_bp
 
 app = Flask(__name__)
 CORS(app)
@@ -19,6 +20,7 @@ app.register_blueprint(pagamentos_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(horario_bp)
 app.register_blueprint(chatbot_bp)
+app.register_blueprint(push_bp)
 init_db()
 
 
@@ -29,7 +31,10 @@ def health():
 
 @app.route("/config", methods=["GET"])
 def config():
-    return jsonify({"mp_public_key": os.environ.get("MP_PUBLIC_KEY", "")})
+    return jsonify({
+        "mp_public_key": os.environ.get("MP_PUBLIC_KEY", ""),
+        "vapid_public_key": os.environ.get("VAPID_PUBLIC_KEY", ""),
+    })
 
 
 if __name__ == "__main__":
