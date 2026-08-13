@@ -2,29 +2,30 @@ const API = location.hostname === 'localhost'
   ? 'http://localhost:5000'
   : 'https://acai-express-backend.onrender.com';
 const TAXA_ENTREGA = 3.0;
+// Deve espelhar TAXA_MAQUININHA_ATE_50/TAXA_MAQUININHA_ACIMA_50/LIMITE_ITENS_TAXA_MAQUININHA
+// em backend/back/routes/pedidos.py
+const TAXA_MAQUININHA_ATE_50 = 2.0;
+const TAXA_MAQUININHA_ACIMA_50 = 3.0;
+const LIMITE_ITENS_TAXA_MAQUININHA = 50.0;
+
+// Deve espelhar CATEGORIAS_CARDAPIO em backend/back/database.py
+const ORDEM_CATEGORIAS = ["Açaí Tradicional", "Cupuaçu", "Iogurte Grego", "Iogurte Grego com Morango"];
+let categoriaAtiva = 'Todos';
+
+// Deve espelhar CATEGORIAS_COMPLEMENTOS em backend/back/database.py
+const ORDEM_CATEGORIAS_COMPLEMENTOS = ["Calda", "Frutas", "Complementos Gratuitos", "Complementos Adicionais"];
 
 let produtos     = [];
 let complementos = [];
-let mp           = null;
 
 let carrinho = [];
-const MAX_ACOMPANHAMENTOS = 4;
-
-let mpOrderId          = null;
-let cardBrickController = null;
 
 function limitarAcompanhamentos(produtoId) {
   const checkboxes = document.querySelectorAll(`.check-${produtoId}`);
   const marcados   = Array.from(checkboxes).filter(c => c.checked).length;
-  checkboxes.forEach(c => {
-    if (!c.checked) c.disabled = marcados >= MAX_ACOMPANHAMENTOS;
-  });
   const contador = document.getElementById(`contador-${produtoId}`);
   if (contador) {
-    contador.textContent = marcados > 0
-      ? `${marcados}/${MAX_ACOMPANHAMENTOS} escolhidos`
-      : 'toque para escolher';
-    contador.style.color = marcados >= MAX_ACOMPANHAMENTOS ? '#e74c3c' : '#888';
+    contador.textContent = marcados > 0 ? `${marcados} escolhido${marcados > 1 ? 's' : ''}` : 'toque para escolher';
   }
 }
 
@@ -48,11 +49,35 @@ function _opcaoComplemento(p, comp) {
     </label>`;
 }
 
-function renderVitrine() {
-  const gratuitos = complementos.filter(c => c.preco === 0);
-  const pagos     = complementos.filter(c => c.preco > 0).sort((a, b) => a.preco - b.preco);
+function renderCategoriaTabs() {
+  const presentes = ORDEM_CATEGORIAS.filter(cat => produtos.some(p => p.categoria === cat));
+  const tabs = ['Todos', ...presentes];
+  document.getElementById('categoria-tabs').innerHTML = tabs.map(cat => `
+    <button type="button" class="categoria-tab ${cat === categoriaAtiva ? 'active' : ''}"
+      onclick="selecionarCategoria('${cat}')">${cat}</button>
+  `).join('');
+}
 
-  document.getElementById('produtos-grid').innerHTML = produtos.map(p => `
+function selecionarCategoria(cat) {
+  categoriaAtiva = cat;
+  renderCategoriaTabs();
+  renderVitrine();
+}
+
+function _gruposComplementos() {
+  return ORDEM_CATEGORIAS_COMPLEMENTOS
+    .map(categoria => ({ categoria, itens: complementos.filter(c => c.categoria === categoria) }))
+    .filter(g => g.itens.length > 0);
+}
+
+function renderVitrine() {
+  const visiveis = categoriaAtiva === 'Todos'
+    ? produtos
+    : produtos.filter(p => p.categoria === categoriaAtiva);
+
+  const gruposComplementos = _gruposComplementos();
+
+  document.getElementById('produtos-grid').innerHTML = visiveis.map(p => `
     <div class="card">
       <h3>${p.nome}</h3>
       <span class="preco">R$ ${p.preco.toFixed(2)}</span>
@@ -61,11 +86,10 @@ function renderVitrine() {
         <span class="seta-toggle" id="seta-${p.id}">▾</span>
       </button>
       <div class="opcoes-container" id="opcoes-${p.id}" style="display:none">
-        <p class="opcoes-limite">Escolha até ${MAX_ACOMPANHAMENTOS} acompanhamentos</p>
-        ${gratuitos.length > 0 ? `<p class="opcoes-titulo">Grátis</p>` : ''}
-        ${gratuitos.map(comp => _opcaoComplemento(p, comp)).join('')}
-        ${pagos.length > 0 ? `<p class="opcoes-titulo">Com custo adicional</p>` : ''}
-        ${pagos.map(comp => _opcaoComplemento(p, comp)).join('')}
+        ${gruposComplementos.map(g => `
+          <p class="opcoes-titulo">${g.categoria}</p>
+          ${g.itens.map(comp => _opcaoComplemento(p, comp)).join('')}
+        `).join('')}
       </div>
       <button class="btn-add-vitrine" onclick="addToCart(${p.id})">Adicionar</button>
     </div>
@@ -84,7 +108,7 @@ function addToCart(id) {
   } else {
     carrinho.push({ key: itemKey, nome: prod.nome, preco: prod.preco + precoExtras, extras: selected, qtd: 1 });
   }
-  document.querySelectorAll(`.check-${id}`).forEach(c => { c.checked = false; c.disabled = false; });
+  document.querySelectorAll(`.check-${id}`).forEach(c => { c.checked = false; });
   limitarAcompanhamentos(id);
   updateUI();
   toggleCart(true);
@@ -99,9 +123,18 @@ function changeQty(key, delta) {
   updateUI();
 }
 
+function calcularTaxaMaquininha() {
+  const formaEl = document.querySelector('input[name="forma-pagamento"]:checked');
+  const forma   = formaEl ? formaEl.value : 'pix';
+  if (forma !== 'cartao') return 0;
+  const subtotalItens = carrinho.reduce((s, i) => s + i.preco * i.qtd, 0);
+  return subtotalItens <= LIMITE_ITENS_TAXA_MAQUININHA ? TAXA_MAQUININHA_ATE_50 : TAXA_MAQUININHA_ACIMA_50;
+}
+
 function calcularTotal() {
   const subtotal = carrinho.reduce((s, i) => s + i.preco * i.qtd, 0);
-  return subtotal + (carrinho.length > 0 ? TAXA_ENTREGA : 0);
+  if (carrinho.length === 0) return 0;
+  return subtotal + TAXA_ENTREGA + calcularTaxaMaquininha();
 }
 
 function updateUI() {
@@ -123,10 +156,33 @@ function updateUI() {
         </div>
       </div>`;
   }).join('');
-  const taxa = qtdTotal > 0 ? TAXA_ENTREGA : 0;
+  const taxaEntrega    = qtdTotal > 0 ? TAXA_ENTREGA : 0;
+  const taxaMaquininha = qtdTotal > 0 ? calcularTaxaMaquininha() : 0;
   document.getElementById('cart-count').innerText = qtdTotal;
-  document.getElementById('cart-taxa').innerText  = `R$ ${taxa.toFixed(2)}`;
-  document.getElementById('cart-total').innerText  = `R$ ${(total + taxa).toFixed(2)}`;
+  document.getElementById('cart-taxa').innerText  = `R$ ${taxaEntrega.toFixed(2)}`;
+  document.getElementById('cart-total').innerText  = `R$ ${(total + taxaEntrega + taxaMaquininha).toFixed(2)}`;
+
+  const linhaMaquininha = document.getElementById('cart-taxa-maquininha-row');
+  if (taxaMaquininha > 0) {
+    linhaMaquininha.style.display = 'flex';
+    document.getElementById('cart-taxa-maquininha').innerText = `R$ ${taxaMaquininha.toFixed(2)}`;
+  } else {
+    linhaMaquininha.style.display = 'none';
+  }
+}
+
+function atualizarResumoModal() {
+  const taxaMaquininha = calcularTaxaMaquininha();
+  document.getElementById('modal-resumo-taxa').textContent = `R$ ${TAXA_ENTREGA.toFixed(2)}`;
+  document.getElementById('modal-resumo-total').textContent = `R$ ${calcularTotal().toFixed(2)}`;
+
+  const linhaMaquininha = document.getElementById('modal-resumo-maquininha-linha');
+  if (taxaMaquininha > 0) {
+    linhaMaquininha.style.display = 'flex';
+    document.getElementById('modal-resumo-maquininha').textContent = `R$ ${taxaMaquininha.toFixed(2)}`;
+  } else {
+    linhaMaquininha.style.display = 'none';
+  }
 }
 
 function alternarFormaPagamento() {
@@ -134,13 +190,8 @@ function alternarFormaPagamento() {
   document.getElementById('cartao-campos').classList.toggle('active', forma === 'cartao');
   document.getElementById('pix-campos').classList.toggle('active', forma === 'pix');
   document.getElementById('dinheiro-campos').classList.toggle('active', forma === 'dinheiro');
-  document.getElementById('btn-enviar-pedido').style.display = forma === 'cartao' ? 'none' : 'block';
-
-  if (forma === 'pix') {
-    tentarGerarPixSeEmailValido();
-  } else if (forma === 'cartao') {
-    montarCardBrick();
-  }
+  atualizarResumoModal();
+  updateUI();
 }
 
 function alternarTroco() {
@@ -149,54 +200,9 @@ function alternarTroco() {
   if (!precisa) document.getElementById('input-troco-para').value = '';
 }
 
-function tentarGerarPixSeEmailValido() {
-  const formaAtual = document.querySelector('input[name="forma-pagamento"]:checked').value;
-  if (formaAtual !== 'pix') return;
-
-  const email = document.getElementById('input-email').value.trim();
-  if (!email.includes('@')) {
-    mpOrderId = null;
-    document.getElementById('pix-qrcode').textContent = 'Preencha seu e-mail acima para gerar o QR Code.';
-    document.getElementById('pix-copia-cola').value = '';
-    return;
-  }
-  const nome = document.getElementById('input-nome').value.trim();
-  gerarPix(email, nome);
-}
-
-async function gerarPix(email, nome) {
-  const qrEl        = document.getElementById('pix-qrcode');
-  const copiaColaEl = document.getElementById('pix-copia-cola');
-
-  mpOrderId = null;
-  copiaColaEl.value = '';
-  qrEl.textContent = 'Gerando QR Code…';
-
-  try {
-    const res  = await fetch(`${API}/pagamentos/pix`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ valor: calcularTotal(), email, nome })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.erro || `Erro ${res.status}`);
-
-    mpOrderId = data.mp_order_id;
-    qrEl.innerHTML = `<img src="data:image/png;base64,${data.qr_code_base64}" alt="QR Code Pix">`;
-    copiaColaEl.value = data.qr_code;
-
-  } catch (e) {
-    console.error(e);
-    qrEl.textContent = e.message && e.message !== 'Failed to fetch'
-      ? e.message
-      : 'Não foi possível gerar o QR Code Pix. Tente novamente.';
-  }
-}
-
 function copiarPix() {
-  const copiaColaEl = document.getElementById('pix-copia-cola');
-  if (!copiaColaEl.value) return;
-  navigator.clipboard.writeText(copiaColaEl.value).then(() => {
+  const chaveEl = document.getElementById('pix-chave');
+  navigator.clipboard.writeText(chaveEl.value).then(() => {
     const btn = document.querySelector('.btn-copiar');
     const textoOriginal = btn.textContent;
     btn.textContent = 'Copiado!';
@@ -204,103 +210,13 @@ function copiarPix() {
   });
 }
 
-async function montarCardBrick() {
-  const container = document.getElementById('cardPaymentBrick_container');
-
-  if (!mp) {
-    container.textContent = 'Erro: SDK da Mercado Pago não carregou. Recarregue a página.';
-    return;
-  }
-
-  if (cardBrickController) {
-    try { await cardBrickController.unmount(); } catch (e) { /* já desmontado */ }
-    cardBrickController = null;
-  }
-  container.innerHTML = '<p class="brick-loading">Carregando formulário de cartão…</p>';
-
-  try {
-    const bricksBuilder = mp.bricks();
-    cardBrickController = await bricksBuilder.create('cardPayment', 'cardPaymentBrick_container', {
-      initialization: { amount: calcularTotal() },
-      callbacks: {
-        onReady: () => {
-          const aviso = container.querySelector('.brick-loading');
-          if (aviso) aviso.remove();
-        },
-        onSubmit: (formData) => processarCartao(formData),
-        onError: (error) => {
-          console.error('Card Brick onError:', error);
-          document.getElementById('modal-erro').textContent = 'Erro no formulário de cartão.';
-        }
-      }
-    });
-  } catch (e) {
-    console.error('Falha ao montar Card Brick:', e);
-    container.textContent = 'Não foi possível carregar o formulário de cartão: ' + (e.message || e);
-  }
-}
-
 function dadosClienteValidos() {
   const nome   = document.getElementById('input-nome').value.trim();
   const tel    = document.getElementById('input-tel').value.trim();
-  const email  = document.getElementById('input-email').value.trim();
   const rua    = document.getElementById('input-rua').value.trim();
   const numero = document.getElementById('input-numero').value.trim();
   const bairro = document.getElementById('input-bairro').value.trim();
-  return { nome, tel, email, rua, numero, bairro };
-}
-
-async function processarCartao(formData) {
-  const erro = document.getElementById('modal-erro');
-  const { nome, tel, email, rua, numero, bairro } = dadosClienteValidos();
-
-  if (!nome || !tel || !email || !rua || !numero || !bairro) {
-    erro.textContent = 'Preencha todos os campos para continuar.';
-    throw new Error('Dados do cliente incompletos');
-  }
-  erro.textContent = '';
-
-  const resCartao = await fetch(`${API}/pagamentos/cartao`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({
-      valor: calcularTotal(),
-      email,
-      nome,
-      token: formData.token,
-      payment_method_id: formData.payment_method_id,
-      installments: formData.installments
-    })
-  });
-  const dataCartao = await resCartao.json();
-  if (!resCartao.ok) {
-    erro.textContent = dataCartao.erro || 'Pagamento recusado.';
-    throw new Error(dataCartao.erro || 'Pagamento recusado');
-  }
-
-  const end = `${rua}, ${numero} — ${bairro}, Rolante`;
-  const payload = {
-    cliente: { nome, tel, end },
-    itens: carrinho.map(i => ({ nome: i.nome, preco: i.preco, extras: i.extras, qtd: i.qtd })),
-    total: calcularTotal(),
-    forma_pagamento: 'cartao',
-    mp_order_id: dataCartao.mp_order_id
-  };
-
-  const res  = await fetch(`${API}/pedidos`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(payload)
-  });
-  if (!res.ok) {
-    erro.textContent = 'Pagamento aprovado, mas houve um erro ao registrar o pedido. '
-      + 'Entre em contato com o estabelecimento informando o horário da compra.';
-    throw new Error(`Erro ${res.status}`);
-  }
-
-  const data = await res.json();
-  salvarPedidoLocal(data.id);
-  window.location.href = `acompanhar.html?id=${data.id}`;
+  return { nome, tel, rua, numero, bairro };
 }
 
 function salvarPedidoLocal(id) {
@@ -317,36 +233,20 @@ function abrirModal() {
   if (carrinho.length === 0) return;
   document.getElementById('modal-erro').textContent = '';
   document.getElementById('modal-overlay').classList.add('active');
-
-  const formaAtual = document.querySelector('input[name="forma-pagamento"]:checked').value;
-  document.getElementById('btn-enviar-pedido').style.display = formaAtual === 'cartao' ? 'none' : 'block';
-
-  if (formaAtual === 'cartao') {
-    montarCardBrick();
-  } else if (formaAtual === 'pix') {
-    tentarGerarPixSeEmailValido();
-  }
+  atualizarResumoModal();
 }
 
 function fecharModal() {
   document.getElementById('modal-overlay').classList.remove('active');
-  mpOrderId = null;
-  document.getElementById('pix-qrcode').textContent = 'Preencha seu e-mail acima para gerar o QR Code.';
-  document.getElementById('pix-copia-cola').value = '';
   document.getElementById('input-precisa-troco').checked = false;
   alternarTroco();
-  if (cardBrickController) {
-    cardBrickController.unmount().catch(() => {});
-    cardBrickController = null;
-  }
-  document.getElementById('cardPaymentBrick_container').innerHTML = '';
 }
 
 async function confirmarPedido() {
   const erro = document.getElementById('modal-erro');
-  const { nome, tel, email, rua, numero, bairro } = dadosClienteValidos();
+  const { nome, tel, rua, numero, bairro } = dadosClienteValidos();
 
-  if (!nome || !tel || !email || !rua || !numero || !bairro) {
+  if (!nome || !tel || !rua || !numero || !bairro) {
     erro.textContent = 'Preencha todos os campos para continuar.';
     return;
   }
@@ -362,12 +262,8 @@ async function confirmarPedido() {
     }
   }
 
-  if (forma === 'pix' && !mpOrderId) {
-    erro.textContent = 'Aguarde o QR Code Pix ser gerado.';
-    return;
-  }
-
   const end = `${rua}, ${numero} — ${bairro}, Rolante`;
+  const observacao = document.getElementById('input-observacao').value.trim();
   const btnEnviar = document.getElementById('btn-enviar-pedido');
 
   try {
@@ -381,8 +277,8 @@ async function confirmarPedido() {
       total: calcularTotal(),
       forma_pagamento: forma,
     };
-    if (forma === 'pix') payload.mp_order_id = mpOrderId;
     if (trocoPara !== null) payload.troco_para = trocoPara;
+    if (observacao) payload.observacao = observacao;
 
     const res  = await fetch(`${API}/pedidos`, {
       method:  'POST',
@@ -429,15 +325,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
-  try {
-    const resConfig = await fetch(`${API}/config`);
-    const config    = await resConfig.json();
-    if (typeof MercadoPago === 'undefined') throw new Error('SDK da Mercado Pago não carregou (verifique sua conexão)');
-    mp = new MercadoPago(config.mp_public_key, { locale: 'pt-BR' });
-  } catch (e) {
-    console.error('Erro ao inicializar Mercado Pago:', e);
-  }
-
+  renderCategoriaTabs();
   renderVitrine();
   const ids = JSON.parse(localStorage.getItem('pedidoIds') || '[]');
   if (ids.length > 0) {

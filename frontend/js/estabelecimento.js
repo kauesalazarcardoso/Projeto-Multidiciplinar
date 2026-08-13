@@ -13,7 +13,9 @@ const LABELS = {
 
 function formatarPagamento(pedido) {
   if (pedido.forma_pagamento === 'cartao') {
-    return `Cartão •••• ${pedido.cartao_ultimos4 || '----'} (${pedido.cartao_bandeira || 'Outro'})`;
+    return pedido.cartao_ultimos4
+      ? `Cartão •••• ${pedido.cartao_ultimos4} (${pedido.cartao_bandeira || 'Outro'})`
+      : 'Cartão (maquininha na entrega)';
   }
   if (pedido.forma_pagamento === 'dinheiro') {
     return pedido.troco_para
@@ -23,15 +25,21 @@ function formatarPagamento(pedido) {
   return 'Pix';
 }
 
+function escapeHtml(texto) {
+  const div = document.createElement('div');
+  div.textContent = texto;
+  return div.innerHTML;
+}
+
 // ── NOTIFICAÇÃO WHATSAPP (link wa.me, envio é manual) ─────────
 // OBS: o link wa.me corrompe emoji no texto pré-preenchido (confirmado em teste
 // manual — mesmo emoji simples como ✅ vira "�" na conversa). Por isso as
 // mensagens abaixo usam só texto puro, sem emoji.
 const MENSAGENS_WHATSAPP = {
-  aguardando: (p, id, nome) => `Oi ${nome}! Recebemos seu pedido #${id} na Açaí Express. Já vamos confirmar!`,
+  aguardando: (p, id, nome) => `Oi ${nome}! Recebemos seu pedido #${id} na Lovers Açaí. Já vamos confirmar!`,
   confirmado: (p, id, nome) => `Oi ${nome}! Seu pedido #${id} foi *confirmado* e já está sendo preparado!`,
   a_caminho:  (p, id, nome) => `Oi ${nome}! Seu pedido #${id} saiu para entrega. Chega já já!`,
-  entregue:   (p, id, nome) => `Oi ${nome}! Seu pedido #${id} foi *entregue*. Bom apetite! Obrigado por pedir na Açaí Express.`,
+  entregue:   (p, id, nome) => `Oi ${nome}! Seu pedido #${id} foi *entregue*. Bom apetite! Obrigado por pedir na Lovers Açaí.`,
 };
 
 function normalizarTelefoneBR(tel) {
@@ -207,6 +215,106 @@ async function limparEntregues() {
   }
 }
 
+// ── PAGAMENTO PENDENTE (Pix aguardando comprovante) ───────────
+async function fetchPedidosPendentes() {
+  try {
+    const res = await fetch(`${API}/pedidos/pendentes`, { headers: authHeaders() });
+    if (tratarRespostaAuth(res)) return null;
+    if (!res.ok) throw new Error(`Erro ${res.status}`);
+    return await res.json();
+  } catch (e) {
+    console.error('Erro ao buscar pedidos pendentes:', e);
+    return null;
+  }
+}
+
+async function confirmarPagamento(id) {
+  try {
+    const res = await fetch(`${API}/pedidos/${id}/confirmar-pagamento`, {
+      method:  'PATCH',
+      headers: authHeaders()
+    });
+    if (tratarRespostaAuth(res)) return;
+    if (!res.ok) throw new Error(`Erro ${res.status}`);
+    renderPendentes();
+    render();
+  } catch (e) {
+    console.error('Erro ao confirmar pagamento:', e);
+    alert('Não foi possível confirmar o pagamento. Tente novamente.');
+  }
+}
+
+async function renderPendentes() {
+  const pendentes = await fetchPedidosPendentes();
+  const el = document.getElementById('lista-pendentes');
+  if (!pendentes || pendentes.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+
+  el.innerHTML = `
+    <h2 class="secao-titulo">🕐 Aguardando comprovante (Pix)</h2>
+    ${pendentes.map(p => `
+      <div class="pedido-card pendente-pagamento">
+        <div class="pedido-topo">
+          <h2>Pedido #${String(p.id).slice(-5)} — ${p.hora}</h2>
+          <span class="badge pendente-pagamento">Aguardando comprovante</span>
+        </div>
+        <div class="pedido-info">
+          <strong>👤 ${p.cliente.nome}</strong><br>
+          📞 ${p.cliente.tel}<br>
+          🏠 ${p.cliente.end}
+        </div>
+        ${p.observacao ? `<div class="pedido-obs">📝 ${escapeHtml(p.observacao)}</div>` : ''}
+        <div class="total-row">
+          <span>Total</span>
+          <span>R$ ${Number(p.total).toFixed(2)}</span>
+        </div>
+        <div class="acoes">
+          <button class="btn-acao btn-confirmar-pagamento" onclick="confirmarPagamento(${p.id})">
+            ✅ Confirmar pagamento
+          </button>
+        </div>
+      </div>
+    `).join('')}`;
+}
+
+// ── HISTÓRICO DE VENDAS (últimos 7 dias) ───────────────────────
+async function fetchVendasPorDia() {
+  try {
+    const res = await fetch(`${API}/pedidos/vendas-por-dia`, { headers: authHeaders() });
+    if (tratarRespostaAuth(res)) return null;
+    if (!res.ok) throw new Error(`Erro ${res.status}`);
+    return await res.json();
+  } catch (e) {
+    console.error('Erro ao buscar histórico de vendas:', e);
+    return null;
+  }
+}
+
+function _formatarDiaCurto(diaISO) {
+  const [ano, mes, dia] = diaISO.split('-');
+  return `${dia}/${mes}`;
+}
+
+async function renderVendasSemana() {
+  const dados = await fetchVendasPorDia();
+  const el = document.getElementById('vendas-semana');
+  if (!dados) { el.innerHTML = ''; return; }
+
+  el.innerHTML = `
+    <h2 class="secao-titulo">📊 Vendas dos últimos 7 dias</h2>
+    <div class="vendas-grid">
+      ${dados.map(d => `
+        <div class="venda-dia">
+          <span class="venda-dia-data">${_formatarDiaCurto(d.dia)}</span>
+          <span class="venda-dia-total">R$ ${Number(d.total).toFixed(2)}</span>
+          <span class="venda-dia-qtd">${d.pedidos} pedido${d.pedidos === 1 ? '' : 's'}</span>
+        </div>
+      `).join('')}
+    </div>`;
+}
+
 // ── RENDERIZAÇÃO ──────────────────────────────────────────────
 async function render() {
   const pedidos = await fetchPedidos();
@@ -296,12 +404,19 @@ async function render() {
           🏠 ${p.cliente.end}
         </div>
 
+        ${p.observacao ? `<div class="pedido-obs">📝 ${escapeHtml(p.observacao)}</div>` : ''}
+
         <div class="itens-lista">
           ${itensHTML}
           <div class="item-row">
             <span>Taxa de entrega</span>
             <span>R$ ${Number(p.taxa_entrega || 0).toFixed(2)}</span>
           </div>
+          ${p.taxa_maquininha > 0 ? `
+          <div class="item-row">
+            <span>Taxa da maquininha</span>
+            <span>R$ ${Number(p.taxa_maquininha).toFixed(2)}</span>
+          </div>` : ''}
           <div class="item-row">
             <span>Pagamento</span>
             <span>${formatarPagamento(p)}</span>
@@ -328,7 +443,13 @@ async function render() {
   }).join('');
 }
 
-// Atualiza a cada 5 segundos para pegar novos pedidos
+// Atualiza a cada 5 segundos para pegar novos pedidos (e pendentes de Pix)
 atualizarBotaoNotificacao();
 render();
+renderPendentes();
 setInterval(render, 5000);
+setInterval(renderPendentes, 5000);
+
+// Histórico de vendas muda devagar — não precisa do polling rápido
+renderVendasSemana();
+setInterval(renderVendasSemana, 60000);

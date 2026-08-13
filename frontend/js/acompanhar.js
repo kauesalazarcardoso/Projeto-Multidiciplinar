@@ -10,6 +10,8 @@ const STEPS = [
 ];
 
 const ORDEM = ['aguardando', 'confirmado', 'a_caminho', 'entregue'];
+const CHAVE_PIX = '50633540000180';
+const NUMERO_WHATSAPP_LOJA = '5551994834263';
 
 function getIds() {
   try { return JSON.parse(localStorage.getItem('pedidoIds') || '[]'); }
@@ -83,6 +85,11 @@ function cardHTML(pedido) {
         <div>Taxa de entrega</div>
         <div>R$ ${Number(pedido.taxa_entrega || 0).toFixed(2)}</div>
       </div>
+      ${pedido.taxa_maquininha > 0 ? `
+      <div class="item-linha">
+        <div>Taxa da maquininha</div>
+        <div>R$ ${Number(pedido.taxa_maquininha).toFixed(2)}</div>
+      </div>` : ''}
       <div class="item-linha">
         <div>Pagamento</div>
         <div>${formatarPagamento(pedido)}</div>
@@ -92,6 +99,12 @@ function cardHTML(pedido) {
         <span>R$ ${Number(pedido.total).toFixed(2)}</span>
       </div>
     </div>`;
+}
+
+function linkWhatsappComprovante(pedido) {
+  const idCurto  = String(pedido.id).slice(-5);
+  const mensagem = `Olá! Segue o comprovante do Pix do pedido #${idCurto}.`;
+  return `https://wa.me/${NUMERO_WHATSAPP_LOJA}?text=${encodeURIComponent(mensagem)}`;
 }
 
 function cardPendentePagamentoHTML(pedido) {
@@ -106,15 +119,15 @@ function cardPendentePagamentoHTML(pedido) {
       <div class="item-linha">
         <div>🕐 Aguardando confirmação do pagamento via Pix…</div>
       </div>
-      ${pedido.pix_qr_base64 ? `
-        <div class="pix-qrcode">
-          <img src="data:image/png;base64,${pedido.pix_qr_base64}" alt="QR Code Pix">
-        </div>
-        <div class="cartao-campos-linha">
-          <input type="text" readonly value="${pedido.pix_copia_cola || ''}" placeholder="Código Pix copia e cola">
-          <button type="button" class="btn-copiar" onclick="copiarCodigoPix(this)">Copiar</button>
-        </div>
-      ` : ''}
+      <p class="pix-info">Pague usando a chave Pix abaixo e envie o comprovante pelo WhatsApp
+        da loja para confirmarmos seu pedido.</p>
+      <div class="cartao-campos-linha">
+        <input type="text" readonly value="${CHAVE_PIX}">
+        <button type="button" class="btn-copiar" onclick="copiarCodigoPix(this)">Copiar</button>
+      </div>
+      <a class="btn-whatsapp-comprovante" href="${linkWhatsappComprovante(pedido)}" target="_blank" rel="noopener">
+        📲 Enviar comprovante pelo WhatsApp
+      </a>
       <div class="total-linha">
         <span>Total</span>
         <span>R$ ${Number(pedido.total).toFixed(2)}</span>
@@ -134,7 +147,9 @@ function copiarCodigoPix(botao) {
 
 function formatarPagamento(pedido) {
   if (pedido.forma_pagamento === 'cartao') {
-    return `Cartão •••• ${pedido.cartao_ultimos4 || '----'} (${pedido.cartao_bandeira || 'Outro'})`;
+    return pedido.cartao_ultimos4
+      ? `Cartão •••• ${pedido.cartao_ultimos4} (${pedido.cartao_bandeira || 'Outro'})`
+      : 'Cartão (maquininha na entrega)';
   }
   if (pedido.forma_pagamento === 'dinheiro') {
     return pedido.troco_para

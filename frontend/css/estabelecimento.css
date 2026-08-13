@@ -76,6 +76,16 @@ body {
 .pedido-card.confirmado { border-left-color: var(--azul); }
 .pedido-card.a_caminho  { border-left-color: var(--secondary); }
 .pedido-card.entregue   { border-left-color: var(--accent); opacity: 0.7; }
+.pedido-card.pendente-pagamento { border-left-color: #c0355f; }
+
+.pedido-obs {
+  background: #fff8e6;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 0.85rem;
+  color: #6b5a1e;
+}
 
 @keyframes pulse-novo {
   0%, 100% { box-shadow: 0 0 0 0 rgba(39, 174, 96, 0.6); }
@@ -114,6 +124,7 @@ body {
 .badge.confirmado { background: var(--azul); }
 .badge.a_caminho  { background: var(--secondary); }
 .badge.entregue   { background: var(--accent); }
+.badge.pendente-pagamento { background: #c0355f; }
 
 .pedido-info {
   font-size: 0.9rem;
@@ -184,3 +195,60 @@ body {
 .btn-caminho   { background: var(--secondary); color: white; }
 .btn-entregue  { background: var(--accent);    color: white; }
 .btn-whatsapp  { background: #25d366;          color: white; }
+.btn-confirmar-pagamento { background: #c0355f; color: white; }
+
+/* SEÇÕES: PENDENTES DE COMPROVANTE / HISTÓRICO DE VENDAS */
+.secao-titulo {
+  font-family: 'Baloo 2', cursive;
+  color: var(--primary);
+  font-size: 1.1rem;
+  margin: 0 0 12px;
+}
+
+.lista-pendentes:empty,
+.vendas-semana:empty { margin: 0; }
+
+.lista-pendentes { margin-bottom: 24px; }
+
+.vendas-semana {
+  background: white;
+  border-radius: 16px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+}
+
+.vendas-grid {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+}
+
+.venda-dia {
+  flex: 0 0 auto;
+  min-width: 90px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: #f5f0fc;
+  border-radius: 10px;
+  padding: 12px 10px;
+}
+
+.venda-dia-data {
+  font-size: 0.78rem;
+  color: #888;
+  font-weight: 600;
+}
+
+.venda-dia-total {
+  font-family: 'Baloo 2', cursive;
+  color: var(--primary);
+  font-size: 1rem;
+}
+
+.venda-dia-qtd {
+  font-size: 0.72rem;
+  color: #999;
+}

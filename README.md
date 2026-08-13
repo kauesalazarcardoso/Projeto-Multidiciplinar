@@ -1,4 +1,4 @@
-# Sistema Web de Pedidos — Açaí Express
+# Sistema Web de Pedidos — Lovers Açaí
 
 Sistema web para gerenciamento de pedidos de açaí, desenvolvido para pequenos estabelecimentos. Substitui atendimentos manuais por um fluxo digital com três painéis separados: cliente, gestor e administrador.
 
@@ -37,11 +37,9 @@ TCC/
 │   ├── back/
 │   │   ├── app.py               # Entrada da aplicação Flask
 │   │   ├── database.py          # Conexão e inicialização do banco
-│   │   ├── mercado_pago.py      # Integração com a Orders API (Pix/Cartão)
 │   │   └── routes/
-│   │       ├── pedidos.py       # Rotas de pedidos
+│   │       ├── pedidos.py       # Rotas de pedidos, pagamento manual e vendas
 │   │       ├── cardapio.py      # Rotas de cardápio e complementos
-│   │       ├── pagamentos.py    # Rotas de pagamento (Pix/Cartão)
 │   │       └── auth.py          # Login/logout do proprietário
 │   ├── tests/
 │   │   ├── conftest.py
@@ -146,10 +144,13 @@ Rotas marcadas com 🔒 exigem o cabeçalho `Authorization: Bearer <token>`, obt
 | Método | Rota | Descrição |
 |---|---|---|
 | GET | `/` | Health check |
-| GET 🔒 | `/pedidos` | Lista todos os pedidos |
+| GET 🔒 | `/pedidos` | Lista pedidos ativos (exclui os aguardando comprovante de Pix) |
+| GET 🔒 | `/pedidos/pendentes` | Lista pedidos Pix aguardando confirmação de comprovante |
 | GET | `/pedidos/<id>` | Busca pedido por ID (usado pelo cliente para acompanhar) |
-| POST | `/pedidos` | Cria novo pedido (após pagamento confirmado) |
+| POST | `/pedidos` | Cria novo pedido |
 | PATCH 🔒 | `/pedidos/<id>/status` | Avança status do pedido |
+| PATCH 🔒 | `/pedidos/<id>/confirmar-pagamento` | Confirma manualmente o comprovante de um pedido Pix |
+| GET 🔒 | `/pedidos/vendas-por-dia` | Total vendido por dia nos últimos 7 dias (só pedidos entregues) |
 | DELETE 🔒 | `/pedidos/entregues` | Remove pedidos entregues |
 
 ### Cardápio
@@ -169,12 +170,20 @@ Rotas marcadas com 🔒 exigem o cabeçalho `Authorization: Bearer <token>`, obt
 | POST 🔒 | `/complementos` | Cria novo complemento |
 | DELETE 🔒 | `/complementos/<id>` | Remove complemento |
 
-### Pagamentos (Mercado Pago)
+### Formas de pagamento
 
-| Método | Rota | Descrição |
-|---|---|---|
-| POST | `/pagamentos/pix` | Gera cobrança Pix (QR Code + copia-e-cola) |
-| POST | `/pagamentos/cartao` | Processa pagamento com cartão tokenizado |
+Não há gateway de pagamento online — as três formas (`pix`, `cartao`, `dinheiro`) são
+resolvidas manualmente:
+
+- **Pix**: o pedido nasce com status `pendente_pagamento`. O cliente paga usando uma
+  chave Pix fixa exibida na tela e envia o comprovante pelo WhatsApp da loja; o gestor
+  confirma manualmente no painel (`PATCH /pedidos/<id>/confirmar-pagamento`), o que move
+  o pedido para `aguardando` e ele passa a aparecer na fila normal.
+- **Cartão**: pago na entrega, com maquininha física. A taxa de entrega é R$5,00 quando
+  os itens (sem a taxa) somam até R$50,00, ou R$3,00 acima disso. O pedido já nasce em
+  `aguardando`, sem etapa de confirmação.
+- **Dinheiro**: R$3,00 de taxa fixa, com campo opcional de troco. Também nasce direto em
+  `aguardando`.
 
 ### Fluxo de status
 
@@ -210,7 +219,7 @@ Ou sem o projeto em execução (container descartável):
 docker compose run --rm backend python -m pytest tests/ -v
 ```
 
-34 testes cobrindo criação, listagem, busca, avanço de status, remoção, pagamentos (Pix/Cartão), login/logout e casos de erro. Cada teste roda com banco isolado em arquivo temporário.
+82 testes cobrindo criação, listagem, busca, avanço de status, confirmação manual de pagamento, remoção, login/logout e casos de erro. Cada teste roda com banco isolado.
 
 ---
 

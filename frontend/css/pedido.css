@@ -75,6 +75,38 @@ body {
   box-shadow: 0 0 6px rgba(255,95,150,0.7);
 }
 
+.categoria-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 16px 5% 4px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.categoria-tabs::-webkit-scrollbar { display: none; }
+
+.categoria-tab {
+  flex: 0 0 auto;
+  padding: 8px 18px;
+  border: 1.5px solid #ddd;
+  border-radius: 30px;
+  background: #fff;
+  color: #444;
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.categoria-tab.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
 @keyframes pulsarStatus {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%      { opacity: 0.45; transform: scale(0.8); }
@@ -189,12 +221,6 @@ body {
   background: #fff;
   border-radius: 8px;
   border: 1px solid #eee;
-}
-
-.opcoes-limite {
-  font-size: 0.74rem;
-  color: #888;
-  margin: 0 0 4px;
 }
 
 .opcoes-titulo {
@@ -442,6 +468,24 @@ body {
   border-color: var(--secondary);
 }
 
+.modal textarea {
+  width: 100%;
+  min-height: 70px;
+  box-sizing: border-box;
+  border: 1.5px solid #ddd;
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-size: 1rem;
+  font-family: 'Nunito', sans-serif;
+  outline: none;
+  resize: vertical;
+  transition: border-color 0.2s;
+}
+
+.modal textarea:focus {
+  border-color: var(--secondary);
+}
+
 .modal-erro {
   color: #e74c3c;
   font-size: 0.85rem;
@@ -496,21 +540,37 @@ body {
 
 .cartao-campos-linha input { flex: 1; min-width: 0; }
 
-.pix-qrcode {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 170px;
-  padding: 6px 0;
-  color: #888;
+.pix-info,
+.cartao-info {
+  color: #666;
   font-size: 0.85rem;
-  text-align: center;
+  line-height: 1.4;
+  margin: 0;
 }
 
-.pix-qrcode img {
-  width: 170px;
-  height: 170px;
-  image-rendering: pixelated;
+.modal-resumo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #f5f0fc;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  color: var(--primary);
+  margin-top: 4px;
+}
+
+.modal-resumo-linha {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.modal-resumo-linha-total {
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(75, 29, 141, 0.15);
+  font-size: 0.95rem;
 }
 
 .btn-copiar {

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin — Açaí Express</title>
+  <title>Admin — Lovers Açaí</title>
   <link rel="stylesheet" href="../css/admin.css">
   <script>
     if (!localStorage.getItem('authToken')) {
@@ -13,7 +13,7 @@
 </head>
 <body>
   <header class="header" style="display:flex;justify-content:space-between;align-items:center">
-    <h1>⚙️ Painel Admin — Açaí Express</h1>
+    <h1>⚙️ Painel Admin — Lovers Açaí</h1>
     <button onclick="logout()" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.3);padding:8px 16px;border-radius:8px;cursor:pointer;font-family:'Nunito',sans-serif;font-size:0.85rem">Sair</button>
   </header>
 
@@ -24,15 +24,22 @@
       <div class="form-novo">
         <input type="text" id="novo-nome" placeholder="Nome do item" />
         <input type="number" id="novo-preco" placeholder="Preço (R$)" step="0.01" min="0.01" />
+        <!-- deve espelhar CATEGORIAS_CARDAPIO em backend/back/database.py -->
+        <select id="novo-categoria">
+          <option value="Açaí Tradicional">Açaí Tradicional</option>
+          <option value="Cupuaçu">Cupuaçu</option>
+          <option value="Iogurte Grego">Iogurte Grego</option>
+          <option value="Iogurte Grego com Morango">Iogurte Grego com Morango</option>
+        </select>
         <button onclick="adicionarItem()">+ Adicionar</button>
       </div>
       <p id="erro-form" class="erro"></p>
       <table class="tabela">
         <thead>
-          <tr><th>#</th><th>Nome</th><th>Preço</th><th>Ações</th></tr>
+          <tr><th>#</th><th>Nome</th><th>Preço</th><th>Categoria</th><th>Ações</th></tr>
         </thead>
         <tbody id="tabela-body">
-          <tr><td colspan="4" style="text-align:center;color:#999">Carregando...</td></tr>
+          <tr><td colspan="5" style="text-align:center;color:#999">Carregando...</td></tr>
         </tbody>
       </table>
     </section>
@@ -42,15 +49,22 @@
       <div class="form-novo">
         <input type="text" id="novo-complemento" placeholder="Nome do complemento" />
         <input type="number" id="novo-complemento-preco" placeholder="Preço adicional (R$)" step="0.01" min="0" value="0" />
+        <!-- deve espelhar CATEGORIAS_COMPLEMENTOS em backend/back/database.py -->
+        <select id="novo-complemento-categoria">
+          <option value="Calda">Calda</option>
+          <option value="Frutas">Frutas</option>
+          <option value="Complementos Gratuitos">Complementos Gratuitos</option>
+          <option value="Complementos Adicionais">Complementos Adicionais</option>
+        </select>
         <button onclick="adicionarComplemento()">+ Adicionar</button>
       </div>
       <p id="erro-complemento" class="erro"></p>
       <table class="tabela">
         <thead>
-          <tr><th>#</th><th>Nome</th><th>Preço adicional</th><th>Ações</th></tr>
+          <tr><th>#</th><th>Nome</th><th>Preço adicional</th><th>Categoria</th><th>Ações</th></tr>
         </thead>
         <tbody id="tabela-complementos">
-          <tr><td colspan="4" style="text-align:center;color:#999">Carregando...</td></tr>
+          <tr><td colspan="5" style="text-align:center;color:#999">Carregando...</td></tr>
         </tbody>
       </table>
     </section>
@@ -77,6 +91,14 @@
       <input type="text" id="editar-nome" />
       <label>Preço (R$)</label>
       <input type="number" id="editar-preco" step="0.01" min="0.01" />
+      <label>Categoria</label>
+      <!-- deve espelhar CATEGORIAS_CARDAPIO em backend/back/database.py -->
+      <select id="editar-categoria">
+        <option value="Açaí Tradicional">Açaí Tradicional</option>
+        <option value="Cupuaçu">Cupuaçu</option>
+        <option value="Iogurte Grego">Iogurte Grego</option>
+        <option value="Iogurte Grego com Morango">Iogurte Grego com Morango</option>
+      </select>
       <p id="erro-modal" class="erro"></p>
       <div class="modal-acoes">
         <button class="btn-cancelar" onclick="fecharModal()">Cancelar</button>
@@ -93,6 +115,14 @@
       <input type="text" id="editar-complemento-nome" />
       <label>Preço adicional (R$) — deixe 0 para gratuito</label>
       <input type="number" id="editar-complemento-preco" step="0.01" min="0" />
+      <label>Categoria</label>
+      <!-- deve espelhar CATEGORIAS_COMPLEMENTOS em backend/back/database.py -->
+      <select id="editar-complemento-categoria">
+        <option value="Calda">Calda</option>
+        <option value="Frutas">Frutas</option>
+        <option value="Complementos Gratuitos">Complementos Gratuitos</option>
+        <option value="Complementos Adicionais">Complementos Adicionais</option>
+      </select>
       <p id="erro-modal-complemento" class="erro"></p>
       <div class="modal-acoes">
         <button class="btn-cancelar" onclick="fecharModalComplemento()">Cancelar</button>

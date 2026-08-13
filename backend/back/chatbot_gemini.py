@@ -7,8 +7,7 @@ from google import genai
 
 from database import get_conn
 import horario as horario_mod
-import mercado_pago
-from routes.pedidos import PedidoInvalido, _criar_pedido_interno, criar_pedido_cartao_verificado
+from routes.pedidos import PedidoInvalido, _criar_pedido_interno
 
 _MAX_TENTATIVAS_RATE_LIMIT = 3
 _ESPERA_INICIAL_SEGUNDOS = 3
@@ -24,7 +23,7 @@ _MODEL = "gemini-3.1-flash-lite"
 _MAX_ITERACOES = 6
 
 SYSTEM_PROMPT = """\
-Você é o atendente virtual da Açaí Express, uma loja de açaí.
+Você é o atendente virtual da Lovers Açaí, uma loja de açaí.
 
 - Cumprimente o cliente de forma calorosa e breve. Seja objetivo e direto, como uma \
 conversa real de WhatsApp — sem parágrafos longos.
@@ -37,19 +36,24 @@ preço de cada complemento pago escolhido ao preço do item antes de montar o to
 explique educadamente o motivo (se "fechado_hoje", diga que não abrimos nesse dia; se \
 "fora_do_horario", informe o horário de funcionamento do dia) e agradeça o contato — não \
 continue o fluxo de pedido.
-- Colete: itens desejados (com tamanho/sabor), nome do cliente, telefone e endereço de entrega.
-- Sempre some a taxa de entrega de R$3,00 ao total antes de prosseguir com o pagamento.
+- Colete: itens desejados (com tamanho/sabor), nome do cliente, telefone e endereço de entrega. \
+Se o cliente mencionar alguma observação especial do pedido (ex: sem cebola, trocar embalagem, \
+ponto de referência), inclua no campo observacao ao chamar criar_pedido.
 - Pergunte a forma de pagamento: Pix, cartão ou dinheiro.
-  - Pix: chame gerar_cobranca_pix e envie o código copia-e-cola para o cliente colar no \
-aplicativo do banco.
-  - Cartão: chame gerar_link_pagamento_cartao e envie o link. Só depois que o cliente \
-confirmar que pagou, chame verificar_pagamento_cartao; se aprovado, prossiga para criar_pedido \
-com forma_pagamento "cartao". Se ainda não estiver aprovado, avise que ainda não identificou \
-o pagamento e peça para aguardar um pouco.
-  - Dinheiro: pergunte se precisa de troco e para qual valor.
+  - Pix: a taxa de entrega é R$3,00. Informe a chave Pix "50633540000180" para o cliente pagar, \
+e explique que depois de pagar ele deve enviar o comprovante pelo WhatsApp da loja, \
+(51) 99483-4263. Pode chamar criar_pedido com forma_pagamento "pix" assim que o pedido estiver \
+fechado, sem esperar confirmação de pagamento nenhuma (o pedido já nasce aguardando o \
+comprovante).
+  - Cartão: o pagamento é feito na entrega, com maquininha física que o entregador leva. A taxa \
+de entrega continua sendo R$3,00 normalmente — a maquininha cobra uma taxa própria e separada: \
+R$2,00 em compras de até R$50,00 em itens, ou R$3,00 em compras acima de R$50,00. Pode chamar \
+criar_pedido com forma_pagamento "cartao" direto, sem nenhuma verificação prévia.
+  - Dinheiro: taxa de entrega R$3,00. Pergunte se precisa de troco e para qual valor.
 - Revalide o horário de funcionamento (consultar_horario) logo antes de chamar criar_pedido, \
 pois a loja pode ter fechado durante a conversa.
-- Depois de criar o pedido com sucesso, informe o número do pedido e agradeça.
+- Depois de criar o pedido com sucesso, informe o número do pedido e agradeça. Para pedidos \
+via Pix, lembre o cliente de enviar o comprovante pelo WhatsApp da loja.
 """
 
 TOOLS = [
@@ -74,46 +78,6 @@ TOOLS = [
         "description": "Verifica se o estabelecimento está aberto agora e retorna o horário "
                         "de funcionamento de todos os dias da semana. Chame antes de confirmar "
                         "qualquer pedido.",
-        "parameters": {"type": "object", "properties": {}},
-    },
-    {
-        "type": "function",
-        "name": "gerar_cobranca_pix",
-        "description": "Gera uma cobrança Pix (QR code e código copia-e-cola) para o valor do "
-                        "pedido. Chame depois de confirmar o pedido completo com o cliente, "
-                        "quando ele escolher pagar via Pix.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "valor": {"type": "number", "description": "Valor total do pedido, incluindo a taxa de entrega"},
-                "email": {"type": "string", "description": "E-mail do cliente para o pagamento"},
-                "nome": {"type": "string", "description": "Nome do cliente"},
-            },
-            "required": ["valor", "email", "nome"],
-        },
-    },
-    {
-        "type": "function",
-        "name": "gerar_link_pagamento_cartao",
-        "description": "Gera um link de pagamento hospedado pelo Mercado Pago (Checkout Pro) "
-                        "para o cliente inserir os dados do cartão. Chame quando o cliente "
-                        "escolher pagar com cartão, depois de confirmar o pedido completo.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "valor": {"type": "number", "description": "Valor total do pedido, incluindo a taxa de entrega"},
-                "email": {"type": "string", "description": "E-mail do cliente para o pagamento"},
-                "nome": {"type": "string", "description": "Nome do cliente"},
-            },
-            "required": ["valor", "email", "nome"],
-        },
-    },
-    {
-        "type": "function",
-        "name": "verificar_pagamento_cartao",
-        "description": "Verifica se o pagamento via link de cartão (Checkout Pro) já foi "
-                        "aprovado. Chame quando o cliente disser que já pagou, antes de "
-                        "chamar criar_pedido com forma_pagamento cartao.",
         "parameters": {"type": "object", "properties": {}},
     },
     {
@@ -151,9 +115,15 @@ TOOLS = [
                         "required": ["nome", "preco", "qtd"],
                     },
                 },
-                "total": {"type": "number", "description": "Soma dos itens + taxa de entrega (R$3,00)"},
+                "total": {
+                    "type": "number",
+                    "description": "Soma dos itens + taxa de entrega (sempre R$3,00) + taxa da "
+                                    "maquininha (só para cartão: R$2,00 se os itens somarem até "
+                                    "R$50,00, ou R$3,00 se somarem mais que isso).",
+                },
                 "forma_pagamento": {"type": "string", "enum": ["pix", "cartao", "dinheiro"]},
                 "troco_para": {"type": "number", "description": "Opcional, só para dinheiro"},
+                "observacao": {"type": "string", "description": "Opcional, observação especial do pedido"},
             },
             "required": ["cliente", "itens", "total", "forma_pagamento"],
         },
@@ -193,37 +163,9 @@ def executar_tool(nome, entrada, sessao_id):
     if nome == "consultar_horario":
         return json.dumps(_consultar_horario(), ensure_ascii=False)
 
-    if nome == "gerar_cobranca_pix":
-        order = mercado_pago.criar_order_pix(
-            entrada["valor"], entrada["email"], sessao_id, entrada.get("nome")
-        )
-        payment_method = order.get("transactions", {}).get("payments", [{}])[0].get("payment_method", {})
-        return json.dumps({
-            "copia_cola": payment_method.get("qr_code"),
-            "mp_order_id": order.get("id"),
-        }, ensure_ascii=False)
-
-    if nome == "gerar_link_pagamento_cartao":
-        pref = mercado_pago.criar_preferencia_checkout_pro(
-            entrada["valor"], entrada["email"], sessao_id, entrada.get("nome")
-        )
-        return json.dumps(pref, ensure_ascii=False)
-
-    if nome == "verificar_pagamento_cartao":
-        pagamento = mercado_pago.buscar_pagamento_por_referencia(sessao_id)
-        if pagamento:
-            return json.dumps({"aprovado": True, "payment_id": pagamento.get("id")}, ensure_ascii=False)
-        return json.dumps({"aprovado": False}, ensure_ascii=False)
-
     if nome == "criar_pedido":
         try:
-            if entrada.get("forma_pagamento") == "cartao":
-                pagamento = mercado_pago.buscar_pagamento_por_referencia(sessao_id)
-                if not pagamento:
-                    return json.dumps({"erro": "Pagamento com cartão ainda não foi confirmado"}, ensure_ascii=False)
-                resultado = criar_pedido_cartao_verificado(entrada, str(pagamento.get("id")))
-            else:
-                resultado = _criar_pedido_interno(entrada)
+            resultado = _criar_pedido_interno(entrada)
             return json.dumps(resultado, ensure_ascii=False)
         except PedidoInvalido as e:
             return json.dumps({"erro": e.mensagem, **e.extra}, ensure_ascii=False)

@@ -78,6 +78,26 @@ body {
   font-size: 0.95rem;
 }
 
+.form-novo select,
+.modal-box select {
+  padding: 10px 14px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.95rem;
+  background: white;
+  cursor: pointer;
+}
+
+.form-novo select {
+  flex: 1;
+  min-width: 140px;
+}
+
+.modal-box select {
+  width: 100%;
+}
+
 .form-novo button {
   padding: 10px 20px;
   background: var(--primary);

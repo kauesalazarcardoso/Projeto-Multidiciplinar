@@ -1,22 +1,6 @@
 import json
 import pytest
 
-import mercado_pago
-
-
-def test_payer_sem_nome():
-    assert mercado_pago._payer("cliente@teste.com") == {"email": "cliente@teste.com"}
-
-
-def test_payer_com_nome_completo():
-    payer = mercado_pago._payer("cliente@teste.com", "João Silva")
-    assert payer == {"email": "cliente@teste.com", "first_name": "João", "last_name": "Silva"}
-
-
-def test_payer_com_nome_unico():
-    payer = mercado_pago._payer("cliente@teste.com", "APRO")
-    assert payer == {"email": "cliente@teste.com", "first_name": "APRO"}
-
 
 def test_health_check(client):
 

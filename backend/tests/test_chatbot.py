@@ -90,6 +90,14 @@ def test_tool_criar_pedido_invalido(client):
     assert "erro" in resultado
 
 
+def test_tools_nao_tem_mais_mercado_pago():
+    nomes = {t["name"] for t in chatbot_gemini.TOOLS}
+    assert "gerar_cobranca_pix" not in nomes
+    assert "gerar_link_pagamento_cartao" not in nomes
+    assert "verificar_pagamento_cartao" not in nomes
+    assert "criar_pedido" in nomes
+
+
 # ── Loop de tool use (mockando o cliente Gemini) ────────────────────
 
 def test_loop_sem_tool_use_retorna_texto_direto(client, monkeypatch):

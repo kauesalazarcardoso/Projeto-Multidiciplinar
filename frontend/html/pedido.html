@@ -3,20 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Açaí Express — Pedido</title>
+  <title>Lovers Açaí — Pedido</title>
   <link rel="stylesheet" href="../css/pedido.css">
   <link rel="stylesheet" href="../css/chat.css">
 </head>
 <body>
   <header class="header">
     <a class="btn-back" href="index.html">‹</a>
-    <h1>Açaí Express</h1>
+    <h1>Lovers Açaí</h1>
     <button class="cart-btn" onclick="toggleCart(true)">
       🛒 <span id="cart-count">0</span> Itens
     </button>
   </header>
 
   <div id="horario-status" class="horario-status"></div>
+
+  <div class="categoria-tabs" id="categoria-tabs"></div>
 
   <div class="container">
     <div class="grid" id="produtos-grid"></div>
@@ -32,6 +34,10 @@
       <div class="taxa-row">
         <span>Taxa de entrega:</span>
         <span id="cart-taxa">R$ 0,00</span>
+      </div>
+      <div class="taxa-row" id="cart-taxa-maquininha-row" style="display:none">
+        <span>Taxa da maquininha:</span>
+        <span id="cart-taxa-maquininha">R$ 0,00</span>
       </div>
       <div class="total-row">
         <span>Total:</span>
@@ -49,12 +55,6 @@
       <input type="text" id="input-nome" placeholder="Ex: João Silva">
       <label>Telefone</label>
       <input type="tel" id="input-tel" placeholder="Ex: (51) 99999-9999">
-      <label>E-mail</label>
-      <input type="email" id="input-email" placeholder="Ex: joao@email.com" onblur="tentarGerarPixSeEmailValido()">
-      <small id="aviso-sandbox" style="color:#888;font-size:0.75rem;margin-top:-4px;">
-        Ambiente de teste: use o e-mail <code>test_user_br@testuser.com</code> e o nome <code>APRO</code>
-        (aprova automaticamente). Para simular recusa, use <code>FUND</code>, <code>CALL</code> ou <code>SECU</code> no nome.
-      </small>
       <label>Rua</label>
       <input type="text" id="input-rua" placeholder="Ex: Rua das Flores">
       <label>Número</label>
@@ -64,29 +64,50 @@
       <label>Cidade</label>
       <input type="text" id="input-cidade" value="Rolante" readonly style="background:#f0f0f0;cursor:not-allowed;color:#888;">
 
+      <label>Observação (opcional)</label>
+      <textarea id="input-observacao" placeholder="Ex: sem leite condensado, tocar interfone 2x..." rows="3"></textarea>
+
       <label>Forma de pagamento</label>
       <div class="pagamento-opcoes">
         <label class="pagamento-opcao">
           <input type="radio" name="forma-pagamento" value="pix" checked onchange="alternarFormaPagamento()"> Pix
         </label>
         <label class="pagamento-opcao">
-          <input type="radio" name="forma-pagamento" value="cartao" onchange="alternarFormaPagamento()"> Cartão de Crédito
+          <input type="radio" name="forma-pagamento" value="cartao" onchange="alternarFormaPagamento()"> Cartão
         </label>
         <label class="pagamento-opcao">
           <input type="radio" name="forma-pagamento" value="dinheiro" onchange="alternarFormaPagamento()"> Dinheiro
         </label>
       </div>
 
+      <div class="modal-resumo" id="modal-resumo">
+        <div class="modal-resumo-linha">
+          <span>Taxa de entrega</span>
+          <b id="modal-resumo-taxa">R$ 0,00</b>
+        </div>
+        <div class="modal-resumo-linha" id="modal-resumo-maquininha-linha" style="display:none">
+          <span>Taxa da maquininha</span>
+          <b id="modal-resumo-maquininha">R$ 0,00</b>
+        </div>
+        <div class="modal-resumo-linha modal-resumo-linha-total">
+          <span>Total</span>
+          <b id="modal-resumo-total">R$ 0,00</b>
+        </div>
+      </div>
+
       <div class="pix-campos active" id="pix-campos">
-        <div class="pix-qrcode" id="pix-qrcode">Gerando QR Code…</div>
+        <p class="pix-info">Pague usando a chave Pix abaixo. Depois de pagar, você vai poder
+          enviar o comprovante pelo WhatsApp da loja direto da tela de acompanhamento do
+          pedido.</p>
         <div class="cartao-campos-linha">
-          <input type="text" id="pix-copia-cola" readonly placeholder="Código Pix copia e cola">
+          <input type="text" id="pix-chave" readonly value="50633540000180">
           <button type="button" class="btn-copiar" onclick="copiarPix()">Copiar</button>
         </div>
       </div>
 
       <div class="cartao-campos" id="cartao-campos">
-        <div id="cardPaymentBrick_container"></div>
+        <p class="cartao-info">Pagamento na entrega, com maquininha física levada pelo
+          entregador.</p>
       </div>
 
       <div class="dinheiro-campos" id="dinheiro-campos">
@@ -108,7 +129,7 @@
   <footer class="footer">
     <div class="footer-inner">
       <div class="footer-brand">
-        <span class="footer-logo"> Açaí Express</span>
+        <span class="footer-logo"> Lovers Açaí</span>
         <p>A energia do açaí, na velocidade que você merece!</p>
       </div>
       <div class="footer-links">
@@ -125,12 +146,11 @@
       </div>
     </div>
     <div class="footer-bottom">
-      <p>© 2025 Açaí Express. Todos os direitos reservados.</p>
+      <p>© 2025 Lovers Açaí. Todos os direitos reservados.</p>
     </div>
   </footer>
 
-  <script src="https://sdk.mercadopago.com/js/v2"></script>
-  <script src="/js/pedido.js?v=13"></script>
+  <script src="/js/pedido.js?v=17"></script>
   <script src="../js/horario-status.js"></script>
   <script src="../js/chat.js"></script>
 </body>

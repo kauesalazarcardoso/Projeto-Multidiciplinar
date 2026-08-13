@@ -240,10 +240,10 @@ body {
 }
 
 .card span { position: relative; z-index: 2; }
-.card1 { background: linear-gradient(180deg, #7b5fc9, #3b2a63); }
-.card2 { background-image: url('../img/card2.png'); }
-.card3 { background-image: url('../img/card3.png'); }
-.card4 { background-image: url('../img/card4.png'); }
+.card1 { background-image: url('../img/card1.jpg'); }
+.card2 { background-image: url('../img/card2.jpg'); }
+.card3 { background-image: url('../img/card3.jpg'); }
+.card4 { background-image: url('../img/card4.jpg'); }
 
 /* ===================== BENEFÍCIOS ===================== */
 .beneficios {

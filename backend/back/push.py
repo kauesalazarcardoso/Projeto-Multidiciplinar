@@ -69,6 +69,10 @@ def enviar_para_todos(titulo, corpo, tag):
                     "keys": {"p256dh": sub["p256dh"], "auth": sub["auth"]},
                 },
                 data=payload,
+                # TTL explícito é obrigatório pro WNS (push do Edge/Windows) —
+                # sem isso ele recusa com 400 Bad Request sem corpo, mesmo
+                # com VAPID correto. FCM/Mozilla toleram TTL 0, WNS não.
+                ttl=3600,
                 vapid_private_key=VAPID_PRIVATE_KEY,
                 vapid_claims={"sub": VAPID_CONTATO},
             )

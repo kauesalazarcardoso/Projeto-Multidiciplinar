@@ -64,12 +64,14 @@ def test_logout_invalida_token(client, auth_headers):
 
 
 def test_cardapio_post_exige_login(client):
-    response = client.post("/cardapio", json={"nome": "Item Teste", "preco": 10})
+    response = client.post("/cardapio", json={"nome": "Item Teste", "preco": 10, "categoria": "Cupuaçu"})
 
     assert response.status_code == 401
 
 
 def test_cardapio_post_com_login_funciona(client, auth_headers):
-    response = client.post("/cardapio", json={"nome": "Item Teste", "preco": 10}, headers=auth_headers)
+    response = client.post(
+        "/cardapio", json={"nome": "Item Teste", "preco": 10, "categoria": "Cupuaçu"}, headers=auth_headers
+    )
 
     assert response.status_code == 201

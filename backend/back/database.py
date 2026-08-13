@@ -10,25 +10,42 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 OWNER_USUARIO_PADRAO = "admin"
 OWNER_SENHA_PADRAO = "acai2026"
 
+CATEGORIAS_CARDAPIO = ["Açaí Tradicional", "Cupuaçu", "Iogurte Grego", "Iogurte Grego com Morango"]
+
 _ITENS_INICIAIS = [
-    ("Copo 200ml Econômico",   10.00),
-    ("Copo 300ml Tradicional", 15.00),
-    ("Copo 400ml Médio",       18.00),
-    ("Copo 500ml Grande",      22.00),
-    ("Copo 700ml Gigante",     28.00),
-    ("Tigela 500ml Casa",      24.00),
-    ("Tigela 800ml Família",   35.00),
-    ("Barca de Açaí P",        45.00),
-    ("Barca de Açaí G",        65.00),
-    ("Copo Trufado Nutella",   26.00),
-    ("Copo Trufado Ninho",     26.00),
-    ("Açaí Zero Açúcar 400ml", 21.00),
+    ("Copo 330ml Açaí Tradicional", 19.00, "Açaí Tradicional"),
+    ("Copo 440ml Açaí Tradicional", 21.00, "Açaí Tradicional"),
+    ("Copo 550ml Açaí Tradicional", 24.00, "Açaí Tradicional"),
+    ("Copo 770ml Açaí Tradicional", 29.00, "Açaí Tradicional"),
+    ("Copo 330ml Cupuaçu", 19.00, "Cupuaçu"),
+    ("Copo 440ml Cupuaçu", 21.00, "Cupuaçu"),
+    ("Copo 550ml Cupuaçu", 24.00, "Cupuaçu"),
+    ("Copo 770ml Cupuaçu", 29.00, "Cupuaçu"),
+    ("Copo 330ml Iogurte Grego", 19.00, "Iogurte Grego"),
+    ("Copo 440ml Iogurte Grego", 21.00, "Iogurte Grego"),
+    ("Copo 550ml Iogurte Grego", 24.00, "Iogurte Grego"),
+    ("Copo 770ml Iogurte Grego", 29.00, "Iogurte Grego"),
+    ("Copo 330ml Iogurte Grego com Morango", 19.00, "Iogurte Grego com Morango"),
+    ("Copo 440ml Iogurte Grego com Morango", 21.00, "Iogurte Grego com Morango"),
+    ("Copo 550ml Iogurte Grego com Morango", 24.00, "Iogurte Grego com Morango"),
+    ("Copo 770ml Iogurte Grego com Morango", 29.00, "Iogurte Grego com Morango"),
 ]
 
+CATEGORIAS_COMPLEMENTOS = ["Calda", "Frutas", "Complementos Gratuitos", "Complementos Adicionais"]
+
 _COMPLEMENTOS_INICIAIS = [
-    "Leite em Pó", "Granola", "Banana", "Morango", "Nutella",
-    "Paçoca", "Leite Condensado", "M&Ms", "Coco Ralado",
-    "Ovomaltine", "Bis", "Kiwi",
+    ("Leite em Pó",      "Complementos Gratuitos"),
+    ("Granola",          "Complementos Gratuitos"),
+    ("Banana",           "Frutas"),
+    ("Morango",          "Frutas"),
+    ("Nutella",          "Calda"),
+    ("Paçoca",           "Complementos Gratuitos"),
+    ("Leite Condensado", "Calda"),
+    ("M&Ms",             "Complementos Gratuitos"),
+    ("Coco Ralado",      "Complementos Gratuitos"),
+    ("Ovomaltine",       "Complementos Gratuitos"),
+    ("Bis",              "Complementos Gratuitos"),
+    ("Kiwi",             "Frutas"),
 ]
 
 _HORARIOS_INICIAIS = [
@@ -59,6 +76,7 @@ def get_conn():
 _PEDIDOS_COLUNAS_NOVAS = {
     "forma_pagamento": "TEXT NOT NULL DEFAULT 'pix'",
     "taxa_entrega":    "REAL NOT NULL DEFAULT 3.0",
+    "taxa_maquininha": "REAL NOT NULL DEFAULT 0",
     "cartao_ultimos4": "TEXT",
     "cartao_bandeira": "TEXT",
     "pix_txid":        "TEXT",
@@ -66,6 +84,7 @@ _PEDIDOS_COLUNAS_NOVAS = {
     "pix_qr_base64":   "TEXT",
     "pix_copia_cola":  "TEXT",
     "troco_para":      "REAL",
+    "observacao":      "TEXT",
 }
 
 
@@ -93,6 +112,39 @@ def _migrar_complementos(conn):
     for coluna, definicao in _COMPLEMENTOS_COLUNAS_NOVAS.items():
         conn.execute(f"ALTER TABLE complementos ADD COLUMN IF NOT EXISTS {coluna} {definicao}")
 
+    conn.execute("ALTER TABLE complementos ADD COLUMN IF NOT EXISTS categoria TEXT")
+    for nome, categoria in _COMPLEMENTOS_INICIAIS:
+        conn.execute(
+            "UPDATE complementos SET categoria = %s WHERE nome = %s AND categoria IS NULL",
+            (categoria, nome)
+        )
+    # itens desconhecidos (fora do seed original) caem num dos dois grupos de
+    # preço, já que não há como adivinhar se são calda/fruta
+    conn.execute(
+        "UPDATE complementos SET categoria = 'Complementos Gratuitos' "
+        "WHERE categoria IS NULL AND preco = 0"
+    )
+    conn.execute(
+        "UPDATE complementos SET categoria = 'Complementos Adicionais' WHERE categoria IS NULL"
+    )
+    conn.execute("ALTER TABLE complementos ALTER COLUMN categoria SET DEFAULT 'Complementos Adicionais'")
+    conn.execute("ALTER TABLE complementos ALTER COLUMN categoria SET NOT NULL")
+
+
+def _migrar_cardapio(conn):
+    conn.execute("ALTER TABLE cardapio ADD COLUMN IF NOT EXISTS categoria TEXT")
+    # As categorias antigas (Copos, Tigelas, Barcas, Trufados, Zero Açúcar,
+    # Outros) e os itens que estavam nelas foram descontinuados — o cardápio
+    # passa a ter só as 4 categorias novas. Remove qualquer linha (inclusive
+    # sem categoria nenhuma) que não seja uma delas.
+    placeholders = ", ".join(["%s"] * len(CATEGORIAS_CARDAPIO))
+    conn.execute(
+        f"DELETE FROM cardapio WHERE categoria IS NULL OR categoria NOT IN ({placeholders})",
+        CATEGORIAS_CARDAPIO
+    )
+    conn.execute("ALTER TABLE cardapio ALTER COLUMN categoria DROP DEFAULT")
+    conn.execute("ALTER TABLE cardapio ALTER COLUMN categoria SET NOT NULL")
+
 
 def init_db():
     with get_conn() as conn:
@@ -106,6 +158,7 @@ def init_db():
                 hora            TEXT    NOT NULL,
                 forma_pagamento TEXT    NOT NULL DEFAULT 'pix',
                 taxa_entrega    REAL    NOT NULL DEFAULT 3.0,
+                taxa_maquininha REAL    NOT NULL DEFAULT 0,
                 cartao_ultimos4 TEXT,
                 cartao_bandeira TEXT,
                 pix_txid        TEXT,
@@ -118,16 +171,19 @@ def init_db():
         _migrar_pedidos(conn)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS cardapio (
-                id    SERIAL  PRIMARY KEY,
-                nome  TEXT    NOT NULL,
-                preco REAL    NOT NULL
+                id        SERIAL  PRIMARY KEY,
+                nome      TEXT    NOT NULL,
+                preco     REAL    NOT NULL,
+                categoria TEXT    NOT NULL
             )
         """)
+        _migrar_cardapio(conn)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS complementos (
-                id    SERIAL  PRIMARY KEY,
-                nome  TEXT    NOT NULL UNIQUE,
-                preco REAL    NOT NULL DEFAULT 0
+                id        SERIAL  PRIMARY KEY,
+                nome      TEXT    NOT NULL UNIQUE,
+                preco     REAL    NOT NULL DEFAULT 0,
+                categoria TEXT    NOT NULL DEFAULT 'Complementos Adicionais'
             )
         """)
         _migrar_complementos(conn)
@@ -200,13 +256,13 @@ def init_db():
             )
         if conn.execute("SELECT COUNT(*) AS c FROM cardapio").fetchone()["c"] == 0:
             conn.cursor().executemany(
-                "INSERT INTO cardapio (nome, preco) VALUES (%s, %s)",
+                "INSERT INTO cardapio (nome, preco, categoria) VALUES (%s, %s, %s)",
                 _ITENS_INICIAIS
             )
         if conn.execute("SELECT COUNT(*) AS c FROM complementos").fetchone()["c"] == 0:
             conn.cursor().executemany(
-                "INSERT INTO complementos (nome) VALUES (%s)",
-                [(n,) for n in _COMPLEMENTOS_INICIAIS]
+                "INSERT INTO complementos (nome, categoria) VALUES (%s, %s)",
+                _COMPLEMENTOS_INICIAIS
             )
         if conn.execute("SELECT COUNT(*) AS c FROM horarios").fetchone()["c"] == 0:
             conn.cursor().executemany(

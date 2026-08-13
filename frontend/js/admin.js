@@ -15,7 +15,7 @@ async function carregarCardapio() {
 
     const tbody = document.getElementById('tabela-body');
     if (itens.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999">Nenhum item no cardápio.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#999">Nenhum item no cardápio.</td></tr>';
       return;
     }
     tbody.innerHTML = itens.map(item => `
@@ -23,6 +23,7 @@ async function carregarCardapio() {
         <td>${item.id}</td>
         <td>${item.nome}</td>
         <td>R$ ${item.preco.toFixed(2)}</td>
+        <td>${item.categoria}</td>
         <td class="acoes-td">
           <button class="btn-editar" data-id="${item.id}">Editar</button>
           <button class="btn-remover" data-id="${item.id}">✕</button>
@@ -31,7 +32,7 @@ async function carregarCardapio() {
     `).join('');
   } catch (e) {
     document.getElementById('tabela-body').innerHTML =
-      '<tr><td colspan="4" style="text-align:center;color:#e74c3c">Erro ao conectar ao servidor.</td></tr>';
+      '<tr><td colspan="5" style="text-align:center;color:#e74c3c">Erro ao conectar ao servidor.</td></tr>';
   }
 }
 
@@ -43,13 +44,14 @@ document.getElementById('tabela-body').addEventListener('click', e => {
 });
 
 async function adicionarItem() {
-  const nome  = document.getElementById('novo-nome').value.trim();
-  const preco = parseFloat(document.getElementById('novo-preco').value);
-  const erro  = document.getElementById('erro-form');
-  if (!nome || isNaN(preco) || preco <= 0) { erro.textContent = 'Preencha nome e preço válidos.'; return; }
+  const nome      = document.getElementById('novo-nome').value.trim();
+  const preco     = parseFloat(document.getElementById('novo-preco').value);
+  const categoria = document.getElementById('novo-categoria').value;
+  const erro      = document.getElementById('erro-form');
+  if (!nome || isNaN(preco) || preco <= 0 || !categoria) { erro.textContent = 'Preencha nome, preço e categoria válidos.'; return; }
   const res = await fetch(`${API}/cardapio`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify({ nome, preco }),
+    body: JSON.stringify({ nome, preco, categoria }),
   });
   if (tratarRespostaAuth(res)) return;
   if (res.ok) {
@@ -72,9 +74,10 @@ async function removerItem(id) {
 function abrirModal(id) {
   const item = _itensMap[id];
   if (!item) return;
-  document.getElementById('editar-id').value    = item.id;
-  document.getElementById('editar-nome').value  = item.nome;
-  document.getElementById('editar-preco').value = item.preco;
+  document.getElementById('editar-id').value       = item.id;
+  document.getElementById('editar-nome').value     = item.nome;
+  document.getElementById('editar-preco').value    = item.preco;
+  document.getElementById('editar-categoria').value = item.categoria;
   document.getElementById('erro-modal').textContent = '';
   document.getElementById('modal').style.display = 'flex';
 }
@@ -84,14 +87,15 @@ function fecharModal() {
 }
 
 async function salvarEdicao() {
-  const id    = parseInt(document.getElementById('editar-id').value);
-  const nome  = document.getElementById('editar-nome').value.trim();
-  const preco = parseFloat(document.getElementById('editar-preco').value);
-  const erro  = document.getElementById('erro-modal');
-  if (!nome || isNaN(preco) || preco <= 0) { erro.textContent = 'Preencha nome e preço válidos.'; return; }
+  const id        = parseInt(document.getElementById('editar-id').value);
+  const nome      = document.getElementById('editar-nome').value.trim();
+  const preco     = parseFloat(document.getElementById('editar-preco').value);
+  const categoria = document.getElementById('editar-categoria').value;
+  const erro      = document.getElementById('erro-modal');
+  if (!nome || isNaN(preco) || preco <= 0 || !categoria) { erro.textContent = 'Preencha nome, preço e categoria válidos.'; return; }
   const res = await fetch(`${API}/cardapio/${id}`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify({ nome, preco }),
+    body: JSON.stringify({ nome, preco, categoria }),
   });
   if (tratarRespostaAuth(res)) return;
   if (res.ok) { fecharModal(); carregarCardapio(); }
@@ -106,6 +110,9 @@ document.getElementById('modal').addEventListener('click', e => {
 
 let _complementosMap = {};
 
+// Deve espelhar CATEGORIAS_COMPLEMENTOS em backend/back/database.py
+const ORDEM_CATEGORIAS_COMPLEMENTOS = ["Calda", "Frutas", "Complementos Gratuitos", "Complementos Adicionais"];
+
 function _linhaComplemento(c) {
   const badge = c.preco > 0
     ? `<span class="badge-preco badge-pago">+R$ ${c.preco.toFixed(2)}</span>`
@@ -115,6 +122,7 @@ function _linhaComplemento(c) {
       <td>${c.id}</td>
       <td>${c.nome}</td>
       <td>${badge}</td>
+      <td>${c.categoria}</td>
       <td class="acoes-td">
         <button class="btn-editar" data-id="${c.id}">Editar</button>
         <button class="btn-remover" data-id="${c.id}">✕</button>
@@ -123,7 +131,7 @@ function _linhaComplemento(c) {
 }
 
 function _linhaSeparadora(texto) {
-  return `<tr class="linha-separadora"><td colspan="4">${texto}</td></tr>`;
+  return `<tr class="linha-separadora"><td colspan="5">${texto}</td></tr>`;
 }
 
 async function carregarComplementos() {
@@ -135,26 +143,21 @@ async function carregarComplementos() {
 
     const tbody = document.getElementById('tabela-complementos');
     if (itens.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999">Nenhum complemento cadastrado.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#999">Nenhum complemento cadastrado.</td></tr>';
       return;
     }
 
-    const gratuitos = itens.filter(c => c.preco === 0);
-    const pagos     = itens.filter(c => c.preco > 0).sort((a, b) => a.preco - b.preco);
-
     let html = '';
-    if (gratuitos.length > 0) {
-      html += _linhaSeparadora(`🆓 Grátis (${gratuitos.length})`);
-      html += gratuitos.map(_linhaComplemento).join('');
-    }
-    if (pagos.length > 0) {
-      html += _linhaSeparadora(`💰 Com custo adicional (${pagos.length})`);
-      html += pagos.map(_linhaComplemento).join('');
-    }
+    ORDEM_CATEGORIAS_COMPLEMENTOS.forEach(categoria => {
+      const doGrupo = itens.filter(c => c.categoria === categoria);
+      if (doGrupo.length === 0) return;
+      html += _linhaSeparadora(`${categoria} (${doGrupo.length})`);
+      html += doGrupo.map(_linhaComplemento).join('');
+    });
     tbody.innerHTML = html;
   } catch (e) {
     document.getElementById('tabela-complementos').innerHTML =
-      '<tr><td colspan="4" style="text-align:center;color:#e74c3c">Erro ao conectar ao servidor.</td></tr>';
+      '<tr><td colspan="5" style="text-align:center;color:#e74c3c">Erro ao conectar ao servidor.</td></tr>';
   }
 }
 
@@ -166,14 +169,15 @@ document.getElementById('tabela-complementos').addEventListener('click', e => {
 });
 
 async function adicionarComplemento() {
-  const nome  = document.getElementById('novo-complemento').value.trim();
-  const preco = parseFloat(document.getElementById('novo-complemento-preco').value) || 0;
-  const erro  = document.getElementById('erro-complemento');
+  const nome      = document.getElementById('novo-complemento').value.trim();
+  const preco     = parseFloat(document.getElementById('novo-complemento-preco').value) || 0;
+  const categoria = document.getElementById('novo-complemento-categoria').value;
+  const erro      = document.getElementById('erro-complemento');
   if (!nome) { erro.textContent = 'Digite o nome do complemento.'; return; }
   if (preco < 0) { erro.textContent = 'Preço não pode ser negativo.'; return; }
   const res = await fetch(`${API}/complementos`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify({ nome, preco }),
+    body: JSON.stringify({ nome, preco, categoria }),
   });
   if (tratarRespostaAuth(res)) return;
   if (res.ok) {
@@ -196,9 +200,10 @@ async function removerComplemento(id) {
 function abrirModalComplemento(id) {
   const comp = _complementosMap[id];
   if (!comp) return;
-  document.getElementById('editar-complemento-id').value    = comp.id;
-  document.getElementById('editar-complemento-nome').value  = comp.nome;
-  document.getElementById('editar-complemento-preco').value = comp.preco;
+  document.getElementById('editar-complemento-id').value        = comp.id;
+  document.getElementById('editar-complemento-nome').value      = comp.nome;
+  document.getElementById('editar-complemento-preco').value     = comp.preco;
+  document.getElementById('editar-complemento-categoria').value = comp.categoria;
   document.getElementById('erro-modal-complemento').textContent = '';
   document.getElementById('modal-complemento').style.display = 'flex';
 }
@@ -208,15 +213,16 @@ function fecharModalComplemento() {
 }
 
 async function salvarEdicaoComplemento() {
-  const id    = parseInt(document.getElementById('editar-complemento-id').value);
-  const nome  = document.getElementById('editar-complemento-nome').value.trim();
-  const preco = parseFloat(document.getElementById('editar-complemento-preco').value) || 0;
-  const erro  = document.getElementById('erro-modal-complemento');
+  const id        = parseInt(document.getElementById('editar-complemento-id').value);
+  const nome      = document.getElementById('editar-complemento-nome').value.trim();
+  const preco     = parseFloat(document.getElementById('editar-complemento-preco').value) || 0;
+  const categoria = document.getElementById('editar-complemento-categoria').value;
+  const erro      = document.getElementById('erro-modal-complemento');
   if (!nome) { erro.textContent = 'Digite o nome do complemento.'; return; }
   if (preco < 0) { erro.textContent = 'Preço não pode ser negativo.'; return; }
   const res = await fetch(`${API}/complementos/${id}`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify({ nome, preco }),
+    body: JSON.stringify({ nome, preco, categoria }),
   });
   if (tratarRespostaAuth(res)) return;
   if (res.ok) { fecharModalComplemento(); carregarComplementos(); }
