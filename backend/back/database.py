@@ -1,8 +1,8 @@
 import os
 from contextlib import contextmanager
 
-import psycopg
 from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
 from werkzeug.security import generate_password_hash
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -60,17 +60,40 @@ _HORARIOS_INICIAIS = [
 ]
 
 
+_pool = None
+_pool_dsn = None
+
+
+def _get_pool():
+    """Cria o pool sob demanda (nunca na importação do módulo — os testes
+    trocam DATABASE_URL via monkeypatch depois de importar, e o Gunicorn em
+    produção roda com um único worker, então não há problema de pool
+    sobrevivendo a um fork). Recria o pool se o DSN mudar, o que é exatamente
+    o que acontece a cada teste ao alternar entre o banco real e o de teste."""
+    global _pool, _pool_dsn
+    if _pool is None or _pool_dsn != DATABASE_URL:
+        if _pool is not None:
+            _pool.close()
+        _pool = ConnectionPool(
+            DATABASE_URL,
+            min_size=1,
+            max_size=5,
+            kwargs={"row_factory": dict_row},
+            open=True,
+        )
+        _pool_dsn = DATABASE_URL
+    return _pool
+
+
 @contextmanager
 def get_conn():
-    conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
-    try:
-        yield conn
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+    with _get_pool().connection() as conn:
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
 
 _PEDIDOS_COLUNAS_NOVAS = {
@@ -85,6 +108,7 @@ _PEDIDOS_COLUNAS_NOVAS = {
     "pix_copia_cola":  "TEXT",
     "troco_para":      "REAL",
     "observacao":      "TEXT",
+    "arquivado":       "BOOLEAN NOT NULL DEFAULT FALSE",
 }
 
 

@@ -54,6 +54,24 @@ def test_limpar_entregues(client, auth_headers):
     assert response.status_code == 200
 
 
+def test_limpar_entregues_some_da_fila_mas_mantem_venda_no_historico(client, auth_headers):
+    criar = _criar_pedido_dinheiro(client, valor=42.0)
+    pedido_id = json.loads(criar.data)["id"]
+
+    for _ in range(3):
+        client.patch(f"/pedidos/{pedido_id}/status", headers=auth_headers)
+
+    limpar = client.delete("/pedidos/entregues", headers=auth_headers)
+    assert limpar.status_code == 200
+    assert json.loads(limpar.data)["arquivados"] == 1
+
+    ativos = json.loads(client.get("/pedidos", headers=auth_headers).data)
+    assert pedido_id not in [p["id"] for p in ativos]
+
+    vendas = json.loads(client.get("/pedidos/vendas-por-dia", headers=auth_headers).data)
+    assert sum(d["total"] for d in vendas) == 42.0
+
+
 def test_buscar_pedido_por_id(client):
     criar = _criar_pedido_dinheiro(client, valor=20.0)
     pedido_id = json.loads(criar.data)["id"]

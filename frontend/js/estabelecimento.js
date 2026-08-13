@@ -244,8 +244,13 @@ async function confirmarPagamento(id) {
   }
 }
 
+let renderPendentesTokenAtual = 0;
+
 async function renderPendentes() {
+  const meuToken = ++renderPendentesTokenAtual;
   const pendentes = await fetchPedidosPendentes();
+  if (meuToken !== renderPendentesTokenAtual) return;
+
   const el = document.getElementById('lista-pendentes');
   if (!pendentes || pendentes.length === 0) {
     el.innerHTML = '';
@@ -297,8 +302,13 @@ function _formatarDiaCurto(diaISO) {
   return `${dia}/${mes}`;
 }
 
+let renderVendasTokenAtual = 0;
+
 async function renderVendasSemana() {
+  const meuToken = ++renderVendasTokenAtual;
   const dados = await fetchVendasPorDia();
+  if (meuToken !== renderVendasTokenAtual) return;
+
   const el = document.getElementById('vendas-semana');
   if (!dados) { el.innerHTML = ''; return; }
 
@@ -316,8 +326,17 @@ async function renderVendasSemana() {
 }
 
 // ── RENDERIZAÇÃO ──────────────────────────────────────────────
+// Guarda "última chamada vence": evita que um GET de polling mais lento
+// (ex: backend acordando de um cold start) sobrescreva a tela com dados
+// desatualizados depois de uma ação mais recente do gestor já ter mudado
+// o status na tela.
+let renderTokenAtual = 0;
+
 async function render() {
+  const meuToken = ++renderTokenAtual;
   const pedidos = await fetchPedidos();
+  if (meuToken !== renderTokenAtual) return;
+
   const el      = document.getElementById('lista-pedidos');
 
   // Erro de conexão com a API

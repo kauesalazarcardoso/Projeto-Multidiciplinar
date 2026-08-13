@@ -194,7 +194,7 @@ Rotas marcadas com 🔒 exigem o cabeçalho `Authorization: Bearer <token>`, obt
 | PATCH 🔒 | `/pedidos/<id>/status` | Avança status do pedido |
 | PATCH 🔒 | `/pedidos/<id>/confirmar-pagamento` | Confirma manualmente o comprovante de um pedido Pix |
 | GET 🔒 | `/pedidos/vendas-por-dia` | Total vendido por dia nos últimos 7 dias (só pedidos entregues) |
-| DELETE 🔒 | `/pedidos/entregues` | Remove pedidos entregues |
+| DELETE 🔒 | `/pedidos/entregues` | Tira os pedidos entregues da fila do gestor (arquiva — não apaga, então o histórico de vendas continua contando eles) |
 
 ### Cardápio e complementos
 
@@ -266,7 +266,7 @@ Ou sem o projeto em execução (container descartável):
 docker compose run --rm backend python -m pytest tests/ -v
 ```
 
-91 testes cobrindo criação, listagem, busca, avanço de status, confirmação manual de pagamento, categorias de cardápio/complementos, remoção, login/logout e casos de erro. Cada teste roda com banco isolado.
+92 testes cobrindo criação, listagem, busca, avanço de status, confirmação manual de pagamento, categorias de cardápio/complementos, remoção, login/logout e casos de erro. Cada teste roda com banco isolado.
 
 ---
 

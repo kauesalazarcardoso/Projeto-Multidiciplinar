@@ -72,7 +72,7 @@ def listar_pedidos():
     with get_conn() as conn:
         rows = conn.execute(
             f"SELECT {_COLUNAS_PEDIDO} FROM pedidos "
-            "WHERE status != %s ORDER BY id DESC",
+            "WHERE status != %s AND arquivado = FALSE ORDER BY id DESC",
             (STATUS_PENDENTE_PAGAMENTO,)
         ).fetchall()
     return jsonify([_serializar_pedido(r) for r in rows])
@@ -308,8 +308,14 @@ def avancar_status(pedido_id):
 @pedidos_bp.route("/pedidos/entregues", methods=["DELETE"])
 @login_required
 def limpar_entregues():
+    """Tira os pedidos entregues da fila do gestor sem apagar a linha do
+    banco — o histórico de vendas (/pedidos/vendas-por-dia) soma pedidos
+    'entregue' independente de arquivado, então limpar a fila não pode
+    fazer o valor do dia sumir do painel."""
     with get_conn() as conn:
-        cur = conn.execute("DELETE FROM pedidos WHERE status = 'entregue'")
-        deletados = cur.rowcount
+        cur = conn.execute(
+            "UPDATE pedidos SET arquivado = TRUE WHERE status = 'entregue' AND arquivado = FALSE"
+        )
+        arquivados = cur.rowcount
 
-    return jsonify({"deletados": deletados})
+    return jsonify({"arquivados": arquivados})
