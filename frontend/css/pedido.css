@@ -468,6 +468,22 @@ body {
   border-color: var(--secondary);
 }
 
+.modal select {
+  border: 1.5px solid #ddd;
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-size: 1rem;
+  font-family: 'Nunito', sans-serif;
+  outline: none;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.modal select:focus {
+  border-color: var(--secondary);
+}
+
 .modal textarea {
   width: 100%;
   min-height: 70px;

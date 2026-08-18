@@ -48,6 +48,10 @@ _COMPLEMENTOS_INICIAIS = [
     ("Kiwi",             "Frutas"),
 ]
 
+_BAIRROS_INICIAIS = [
+    ("Centro", 3.0),
+]
+
 _HORARIOS_INICIAIS = [
     # dia,      abre,    fecha,   fechado
     ("segunda", "13:30", "22:00", 1),
@@ -100,21 +104,26 @@ _PEDIDOS_COLUNAS_NOVAS = {
     "forma_pagamento": "TEXT NOT NULL DEFAULT 'pix'",
     "taxa_entrega":    "REAL NOT NULL DEFAULT 3.0",
     "taxa_maquininha": "REAL NOT NULL DEFAULT 0",
-    "cartao_ultimos4": "TEXT",
-    "cartao_bandeira": "TEXT",
-    "pix_txid":        "TEXT",
-    "mp_order_id":     "TEXT",
-    "pix_qr_base64":   "TEXT",
-    "pix_copia_cola":  "TEXT",
     "troco_para":      "REAL",
     "observacao":      "TEXT",
     "arquivado":       "BOOLEAN NOT NULL DEFAULT FALSE",
 }
 
+_PEDIDOS_COLUNAS_REMOVIDAS = (
+    "cartao_ultimos4", "cartao_bandeira", "pix_txid",
+    "mp_order_id", "pix_qr_base64", "pix_copia_cola",
+)
+
 
 def _migrar_pedidos(conn):
     for coluna, definicao in _PEDIDOS_COLUNAS_NOVAS.items():
         conn.execute(f"ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS {coluna} {definicao}")
+    for coluna in _PEDIDOS_COLUNAS_REMOVIDAS:
+        conn.execute(f"ALTER TABLE pedidos DROP COLUMN IF EXISTS {coluna}")
+    # Pix deixou de esperar confirmação manual do comprovante — qualquer
+    # pedido antigo ainda preso em 'pendente_pagamento' (produção pode ter
+    # algum) passa a entrar direto na fila normal, como os demais.
+    conn.execute("UPDATE pedidos SET status = 'aguardando' WHERE status = 'pendente_pagamento'")
 
 
 _CHAT_SESSOES_COLUNAS_NOVAS = {
@@ -183,12 +192,6 @@ def init_db():
                 forma_pagamento TEXT    NOT NULL DEFAULT 'pix',
                 taxa_entrega    REAL    NOT NULL DEFAULT 3.0,
                 taxa_maquininha REAL    NOT NULL DEFAULT 0,
-                cartao_ultimos4 TEXT,
-                cartao_bandeira TEXT,
-                pix_txid        TEXT,
-                mp_order_id     TEXT,
-                pix_qr_base64   TEXT,
-                pix_copia_cola  TEXT,
                 troco_para      REAL
             )
         """)
@@ -211,26 +214,8 @@ def init_db():
             )
         """)
         _migrar_complementos(conn)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS cartoes (
-                id           SERIAL  PRIMARY KEY,
-                token        TEXT    NOT NULL UNIQUE,
-                nome_titular TEXT    NOT NULL,
-                ultimos4     TEXT    NOT NULL,
-                bandeira     TEXT    NOT NULL,
-                validade     TEXT    NOT NULL,
-                criado_em    TEXT    NOT NULL
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS pix_cobrancas (
-                id         SERIAL  PRIMARY KEY,
-                txid       TEXT    NOT NULL UNIQUE,
-                valor      REAL    NOT NULL,
-                copia_cola TEXT    NOT NULL,
-                criado_em  TEXT    NOT NULL
-            )
-        """)
+        conn.execute("DROP TABLE IF EXISTS cartoes")
+        conn.execute("DROP TABLE IF EXISTS pix_cobrancas")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS usuarios (
                 id         SERIAL  PRIMARY KEY,
@@ -243,6 +228,13 @@ def init_db():
                 token     TEXT    PRIMARY KEY,
                 usuario   TEXT    NOT NULL,
                 criado_em TEXT    NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS bairros (
+                id    SERIAL  PRIMARY KEY,
+                nome  TEXT    NOT NULL UNIQUE,
+                taxa  REAL    NOT NULL DEFAULT 3.0
             )
         """)
         conn.execute("""
@@ -287,6 +279,11 @@ def init_db():
             conn.cursor().executemany(
                 "INSERT INTO complementos (nome, categoria) VALUES (%s, %s)",
                 _COMPLEMENTOS_INICIAIS
+            )
+        if conn.execute("SELECT COUNT(*) AS c FROM bairros").fetchone()["c"] == 0:
+            conn.cursor().executemany(
+                "INSERT INTO bairros (nome, taxa) VALUES (%s, %s)",
+                _BAIRROS_INICIAIS
             )
         if conn.execute("SELECT COUNT(*) AS c FROM horarios").fetchone()["c"] == 0:
             conn.cursor().executemany(

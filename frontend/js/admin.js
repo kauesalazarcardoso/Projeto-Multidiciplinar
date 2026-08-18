@@ -4,6 +4,12 @@ const API = location.hostname === 'localhost'
 
 let _itensMap = {};
 
+function escapeHtml(texto) {
+  const div = document.createElement('div');
+  div.textContent = texto;
+  return div.innerHTML;
+}
+
 // ── CARDÁPIO ─────────────────────────────────────────────────────
 
 async function carregarCardapio() {
@@ -21,9 +27,9 @@ async function carregarCardapio() {
     tbody.innerHTML = itens.map(item => `
       <tr>
         <td>${item.id}</td>
-        <td>${item.nome}</td>
+        <td>${escapeHtml(item.nome)}</td>
         <td>R$ ${item.preco.toFixed(2)}</td>
-        <td>${item.categoria}</td>
+        <td>${escapeHtml(item.categoria)}</td>
         <td class="acoes-td">
           <button class="btn-editar" data-id="${item.id}">Editar</button>
           <button class="btn-remover" data-id="${item.id}">✕</button>
@@ -120,9 +126,9 @@ function _linhaComplemento(c) {
   return `
     <tr>
       <td>${c.id}</td>
-      <td>${c.nome}</td>
+      <td>${escapeHtml(c.nome)}</td>
       <td>${badge}</td>
-      <td>${c.categoria}</td>
+      <td>${escapeHtml(c.categoria)}</td>
       <td class="acoes-td">
         <button class="btn-editar" data-id="${c.id}">Editar</button>
         <button class="btn-remover" data-id="${c.id}">✕</button>
@@ -233,6 +239,108 @@ document.getElementById('modal-complemento').addEventListener('click', e => {
   if (e.target === document.getElementById('modal-complemento')) fecharModalComplemento();
 });
 
+// ── BAIRROS E TAXA DE ENTREGA ────────────────────────────────────
+
+let _bairrosMap = {};
+
+async function carregarBairros() {
+  try {
+    const res     = await fetch(`${API}/bairros`);
+    const bairros = await res.json();
+    _bairrosMap    = {};
+    bairros.forEach(b => { _bairrosMap[b.id] = b; });
+
+    const tbody = document.getElementById('tabela-bairros');
+    if (bairros.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999">Nenhum bairro cadastrado.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = bairros.map(b => `
+      <tr>
+        <td>${b.id}</td>
+        <td>${escapeHtml(b.nome)}</td>
+        <td>R$ ${b.taxa.toFixed(2)}</td>
+        <td class="acoes-td">
+          <button class="btn-editar" data-id="${b.id}">Editar</button>
+          <button class="btn-remover" data-id="${b.id}">✕</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    document.getElementById('tabela-bairros').innerHTML =
+      '<tr><td colspan="4" style="text-align:center;color:#e74c3c">Erro ao conectar ao servidor.</td></tr>';
+  }
+}
+
+document.getElementById('tabela-bairros').addEventListener('click', e => {
+  const btn = e.target;
+  const id  = parseInt(btn.dataset.id);
+  if (btn.classList.contains('btn-editar')) abrirModalBairro(id);
+  if (btn.classList.contains('btn-remover')) removerBairro(id);
+});
+
+async function adicionarBairro() {
+  const nome = document.getElementById('novo-bairro').value.trim();
+  const taxa = parseFloat(document.getElementById('novo-bairro-taxa').value);
+  const erro = document.getElementById('erro-bairro');
+  if (!nome) { erro.textContent = 'Digite o nome do bairro.'; return; }
+  if (isNaN(taxa) || taxa < 0) { erro.textContent = 'Informe uma taxa válida.'; return; }
+  const res = await fetch(`${API}/bairros`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ nome, taxa }),
+  });
+  if (tratarRespostaAuth(res)) return;
+  if (res.ok) {
+    erro.textContent = '';
+    document.getElementById('novo-bairro').value = '';
+    document.getElementById('novo-bairro-taxa').value = '3.00';
+    carregarBairros();
+  } else {
+    erro.textContent = (await res.json()).erro || 'Erro ao adicionar.';
+  }
+}
+
+async function removerBairro(id) {
+  if (!confirm('Remover este bairro?')) return;
+  const res = await fetch(`${API}/bairros/${id}`, { method: 'DELETE', headers: authHeaders() });
+  if (tratarRespostaAuth(res)) return;
+  carregarBairros();
+}
+
+function abrirModalBairro(id) {
+  const bairro = _bairrosMap[id];
+  if (!bairro) return;
+  document.getElementById('editar-bairro-id').value   = bairro.id;
+  document.getElementById('editar-bairro-nome').value = bairro.nome;
+  document.getElementById('editar-bairro-taxa').value = bairro.taxa;
+  document.getElementById('erro-modal-bairro').textContent = '';
+  document.getElementById('modal-bairro').style.display = 'flex';
+}
+
+function fecharModalBairro() {
+  document.getElementById('modal-bairro').style.display = 'none';
+}
+
+async function salvarEdicaoBairro() {
+  const id   = parseInt(document.getElementById('editar-bairro-id').value);
+  const nome = document.getElementById('editar-bairro-nome').value.trim();
+  const taxa = parseFloat(document.getElementById('editar-bairro-taxa').value);
+  const erro = document.getElementById('erro-modal-bairro');
+  if (!nome) { erro.textContent = 'Digite o nome do bairro.'; return; }
+  if (isNaN(taxa) || taxa < 0) { erro.textContent = 'Informe uma taxa válida.'; return; }
+  const res = await fetch(`${API}/bairros/${id}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ nome, taxa }),
+  });
+  if (tratarRespostaAuth(res)) return;
+  if (res.ok) { fecharModalBairro(); carregarBairros(); }
+  else { erro.textContent = (await res.json()).erro || 'Erro ao salvar.'; }
+}
+
+document.getElementById('modal-bairro').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-bairro')) fecharModalBairro();
+});
+
 // ── HORÁRIO DE ATENDIMENTO ─────────────────────────────────────────
 
 const DIAS_LABEL = {
@@ -292,4 +400,5 @@ document.getElementById('tabela-horarios').addEventListener('click', async e => 
 // ── INIT ─────────────────────────────────────────────────────────
 carregarCardapio();
 carregarComplementos();
+carregarBairros();
 carregarHorarios();

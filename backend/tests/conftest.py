@@ -8,6 +8,7 @@ from app import app as flask_app
 from database import init_db, OWNER_USUARIO_PADRAO, OWNER_SENHA_PADRAO
 import database
 import horario
+from routes import auth as auth_module
 
 
 @pytest.fixture(autouse=True)
@@ -22,7 +23,7 @@ TEST_DATABASE_URL = os.environ.get(
 )
 
 _TABELAS = (
-    "pedidos", "cardapio", "complementos", "cartoes", "pix_cobrancas",
+    "pedidos", "cardapio", "complementos", "bairros",
     "usuarios", "sessoes", "horarios", "chat_sessoes",
 )
 
@@ -39,6 +40,10 @@ def client(monkeypatch):
     init_db()
     _limpar_tabelas()
     init_db()
+    # Estado do bloqueio de força bruta do /login é em memória (não é
+    # limpo pelo TRUNCATE acima) — sem isso, um teste que erra a senha
+    # várias vezes deixaria o usuário "admin" bloqueado pros testes seguintes.
+    auth_module._tentativas_login.clear()
     with flask_app.test_client() as client:
         yield client
 

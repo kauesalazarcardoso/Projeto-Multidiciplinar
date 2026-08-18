@@ -21,7 +21,12 @@ document.getElementById('form-login').addEventListener('submit', async (e) => {
     const data = await res.json();
 
     if (!res.ok) {
-      erro.textContent = data.erro || 'Não foi possível entrar.';
+      if (res.status === 429 && data.bloqueado_por_segundos) {
+        const minutos = Math.ceil(data.bloqueado_por_segundos / 60);
+        erro.textContent = `Muitas tentativas incorretas. Tente novamente em ${minutos} minuto${minutos === 1 ? '' : 's'}.`;
+      } else {
+        erro.textContent = data.erro || 'Não foi possível entrar.';
+      }
       return;
     }
 

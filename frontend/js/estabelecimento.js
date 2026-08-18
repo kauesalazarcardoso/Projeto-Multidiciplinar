@@ -9,13 +9,12 @@ const LABELS = {
   confirmado: '✅ Confirmado',
   a_caminho:  '🛵 A Caminho',
   entregue:   '🎉 Entregue',
+  recusado:   '🚫 Recusado',
 };
 
 function formatarPagamento(pedido) {
   if (pedido.forma_pagamento === 'cartao') {
-    return pedido.cartao_ultimos4
-      ? `Cartão •••• ${pedido.cartao_ultimos4} (${pedido.cartao_bandeira || 'Outro'})`
-      : 'Cartão (maquininha na entrega)';
+    return 'Cartão (maquininha na entrega)';
   }
   if (pedido.forma_pagamento === 'dinheiro') {
     return pedido.troco_para
@@ -40,6 +39,7 @@ const MENSAGENS_WHATSAPP = {
   confirmado: (p, id, nome) => `Oi ${nome}! Seu pedido #${id} foi *confirmado* e já está sendo preparado!`,
   a_caminho:  (p, id, nome) => `Oi ${nome}! Seu pedido #${id} saiu para entrega. Chega já já!`,
   entregue:   (p, id, nome) => `Oi ${nome}! Seu pedido #${id} foi *entregue*. Bom apetite! Obrigado por pedir na Lovers Açaí.`,
+  recusado:   (p, id, nome) => `Oi ${nome}, infelizmente não conseguimos aceitar seu pedido #${id} desta vez. Pedimos desculpas pelo transtorno.`,
 };
 
 function normalizarTelefoneBR(tel) {
@@ -199,6 +199,111 @@ async function avancarStatus(id) {
   }
 }
 
+// ── VOLTA STATUS (desfaz avanço por engano) ─────────────────────
+async function voltarStatus(id) {
+  try {
+    const res = await fetch(`${API}/pedidos/${id}/status/voltar`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() }
+    });
+    if (tratarRespostaAuth(res)) return;
+    if (!res.ok) throw new Error(`Erro ${res.status}`);
+    render();
+    if (historicoAberto) renderHistorico();
+  } catch (e) {
+    console.error('Erro ao voltar status:', e);
+    alert('Não foi possível voltar o status. Tente novamente.');
+  }
+}
+
+// ── NEGAR PEDIDO ───────────────────────────────────────────────
+async function negarPedido(id) {
+  if (!confirm('Tem certeza que deseja negar este pedido?')) return;
+  try {
+    const res = await fetch(`${API}/pedidos/${id}/recusar`, {
+      method:  'PATCH',
+      headers: authHeaders()
+    });
+    if (tratarRespostaAuth(res)) return;
+    if (!res.ok) throw new Error(`Erro ${res.status}`);
+    render();
+  } catch (e) {
+    console.error('Erro ao negar pedido:', e);
+    alert('Não foi possível negar o pedido. Tente novamente.');
+  }
+}
+
+// ── IMPRESSÃO DO PEDIDO (recibo p/ impressora de cupom, via impressão do navegador) ──
+let pedidosAtuais = [];
+
+function reciboPedidoHTML(p) {
+  const idCurto = String(p.id).slice(-5);
+
+  const itensHTML = p.itens.map(item => `
+    <div class="linha">
+      <span>${item.qtd}x ${escapeHtml(item.nome)}</span>
+      <span>R$ ${(item.preco * item.qtd).toFixed(2)}</span>
+    </div>
+    ${item.extras && item.extras.length
+      ? `<div class="extras">${escapeHtml(item.extras.join(', '))}</div>`
+      : ''}
+  `).join('');
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Pedido #${idCurto}</title>
+<style>
+  @page { margin: 2mm; size: 58mm auto; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Courier New', monospace; font-size: 10px; width: 48mm; margin: 0; padding: 0; color: #000; }
+  h1 { font-size: 13px; text-align: center; margin: 0 0 4px; }
+  .sep { border-top: 1px dashed #000; margin: 4px 0; }
+  .linha { display: flex; justify-content: space-between; gap: 4px; }
+  .extras { font-size: 9px; padding-left: 6px; color: #333; }
+  .total { font-weight: bold; font-size: 11px; }
+  .info p { margin: 2px 0; word-break: break-word; }
+</style>
+</head>
+<body>
+  <h1>Lovers Açaí</h1>
+  <div class="info">
+    <p>Pedido #${idCurto} — ${p.hora}</p>
+    <p>Cliente: ${escapeHtml(p.cliente.nome || '')}</p>
+    <p>Tel: ${escapeHtml(p.cliente.tel || '')}</p>
+    <p>End: ${escapeHtml(p.cliente.end || '')}</p>
+    ${p.observacao ? `<p>Obs: ${escapeHtml(p.observacao)}</p>` : ''}
+  </div>
+  <div class="sep"></div>
+  ${itensHTML}
+  <div class="sep"></div>
+  <div class="linha"><span>Taxa de entrega</span><span>R$ ${Number(p.taxa_entrega || 0).toFixed(2)}</span></div>
+  ${p.taxa_maquininha > 0 ? `<div class="linha"><span>Taxa maquininha</span><span>R$ ${Number(p.taxa_maquininha).toFixed(2)}</span></div>` : ''}
+  <div class="linha"><span>Pagamento</span><span>${escapeHtml(formatarPagamento(p))}</span></div>
+  <div class="sep"></div>
+  <div class="linha total"><span>TOTAL</span><span>R$ ${Number(p.total).toFixed(2)}</span></div>
+</body>
+</html>`;
+}
+
+function imprimirPedido(id) {
+  const pedido = pedidosAtuais.find(p => p.id === id);
+  if (!pedido) return;
+
+  const janela = window.open('', '_blank', 'width=300,height=600');
+  if (!janela) {
+    alert('Não foi possível abrir a janela de impressão. Verifique o bloqueador de pop-ups.');
+    return;
+  }
+  janela.document.write(reciboPedidoHTML(pedido));
+  janela.document.close();
+  janela.onload = () => {
+    janela.focus();
+    janela.print();
+  };
+}
+
 // ── LIMPAR ENTREGUES ──────────────────────────────────────────
 async function limparEntregues() {
   try {
@@ -215,73 +320,80 @@ async function limparEntregues() {
   }
 }
 
-// ── PAGAMENTO PENDENTE (Pix aguardando comprovante) ───────────
-async function fetchPedidosPendentes() {
+// ── HISTÓRICO (entregues/recusados dos últimos 7 dias) ────────
+let historicoAberto = false;
+
+async function fetchHistorico() {
   try {
-    const res = await fetch(`${API}/pedidos/pendentes`, { headers: authHeaders() });
+    const res = await fetch(`${API}/pedidos/historico`, { headers: authHeaders() });
     if (tratarRespostaAuth(res)) return null;
     if (!res.ok) throw new Error(`Erro ${res.status}`);
     return await res.json();
   } catch (e) {
-    console.error('Erro ao buscar pedidos pendentes:', e);
+    console.error('Erro ao buscar histórico:', e);
     return null;
   }
 }
 
-async function confirmarPagamento(id) {
-  try {
-    const res = await fetch(`${API}/pedidos/${id}/confirmar-pagamento`, {
-      method:  'PATCH',
-      headers: authHeaders()
-    });
-    if (tratarRespostaAuth(res)) return;
-    if (!res.ok) throw new Error(`Erro ${res.status}`);
-    renderPendentes();
-    render();
-  } catch (e) {
-    console.error('Erro ao confirmar pagamento:', e);
-    alert('Não foi possível confirmar o pagamento. Tente novamente.');
+async function toggleHistorico() {
+  historicoAberto = !historicoAberto;
+  const btn = document.getElementById('btn-historico');
+  const el  = document.getElementById('secao-historico');
+  if (historicoAberto) {
+    btn.textContent = '📜 Fechar Histórico';
+    await renderHistorico();
+  } else {
+    btn.textContent = '📜 Histórico (7 dias)';
+    el.innerHTML = '';
   }
 }
 
-let renderPendentesTokenAtual = 0;
+async function renderHistorico() {
+  const el = document.getElementById('secao-historico');
+  el.innerHTML = '<p style="text-align:center;color:#999">Carregando...</p>';
 
-async function renderPendentes() {
-  const meuToken = ++renderPendentesTokenAtual;
-  const pendentes = await fetchPedidosPendentes();
-  if (meuToken !== renderPendentesTokenAtual) return;
+  const pedidos = await fetchHistorico();
+  if (!historicoAberto) return; // fechou enquanto carregava
 
-  const el = document.getElementById('lista-pendentes');
-  if (!pendentes || pendentes.length === 0) {
-    el.innerHTML = '';
+  if (pedidos === null) {
+    el.innerHTML = '<p style="text-align:center;color:#e74c3c">Erro ao carregar histórico.</p>';
+    return;
+  }
+
+  if (pedidos.length === 0) {
+    el.innerHTML = `
+      <h2 class="secao-titulo">📜 Histórico (últimos 7 dias)</h2>
+      <p style="text-align:center;color:#999">Nenhum pedido entregue ou recusado nos últimos 7 dias.</p>`;
     return;
   }
 
   el.innerHTML = `
-    <h2 class="secao-titulo">🕐 Aguardando comprovante (Pix)</h2>
-    ${pendentes.map(p => `
-      <div class="pedido-card pendente-pagamento">
+    <h2 class="secao-titulo">📜 Histórico (últimos 7 dias)</h2>
+    ${pedidos.map(p => {
+      const podeVoltar = ORDEM.indexOf(p.status) > 0;
+      return `
+      <div class="pedido-card ${p.status}">
         <div class="pedido-topo">
           <h2>Pedido #${String(p.id).slice(-5)} — ${p.hora}</h2>
-          <span class="badge pendente-pagamento">Aguardando comprovante</span>
+          <span class="badge ${p.status}">${LABELS[p.status]}</span>
         </div>
         <div class="pedido-info">
-          <strong>👤 ${p.cliente.nome}</strong><br>
-          📞 ${p.cliente.tel}<br>
-          🏠 ${p.cliente.end}
+          <strong>👤 ${escapeHtml(p.cliente.nome)}</strong><br>
+          📞 ${escapeHtml(p.cliente.tel)}<br>
+          🏠 ${escapeHtml(p.cliente.end)}
         </div>
-        ${p.observacao ? `<div class="pedido-obs">📝 ${escapeHtml(p.observacao)}</div>` : ''}
         <div class="total-row">
           <span>Total</span>
           <span>R$ ${Number(p.total).toFixed(2)}</span>
         </div>
-        <div class="acoes">
-          <button class="btn-acao btn-confirmar-pagamento" onclick="confirmarPagamento(${p.id})">
-            ✅ Confirmar pagamento
-          </button>
-        </div>
-      </div>
-    `).join('')}`;
+        ${podeVoltar ? `
+          <div class="acoes">
+            <button class="btn-acao btn-voltar" onclick="voltarStatus(${p.id})" title="Desfazer último avanço de status">
+              ↩️ Voltar Status
+            </button>
+          </div>` : ''}
+      </div>`;
+    }).join('')}`;
 }
 
 // ── HISTÓRICO DE VENDAS (últimos 7 dias) ───────────────────────
@@ -359,6 +471,8 @@ async function render() {
     return;
   }
 
+  pedidosAtuais = pedidos;
+
   const idsAtuais = new Set(pedidos.map(p => p.id));
   const novosIds  = idsConhecidos === null
     ? new Set()
@@ -369,23 +483,26 @@ async function render() {
     notificarNovosPedidos(pedidos.filter(p => novosIds.has(p.id)));
   }
 
-  // Mais recentes primeiro, entregues por último
+  // Mais recentes primeiro, entregues/recusados por último
+  const finalizado = status => status === 'entregue' || status === 'recusado';
   const ordenados = [...pedidos].sort((a, b) => {
-    if (a.status === 'entregue' && b.status !== 'entregue') return  1;
-    if (b.status === 'entregue' && a.status !== 'entregue') return -1;
+    if (finalizado(a.status) && !finalizado(b.status)) return  1;
+    if (finalizado(b.status) && !finalizado(a.status)) return -1;
     return b.id - a.id;
   });
 
   el.innerHTML = ordenados.map(p => {
     const idx         = ORDEM.indexOf(p.status);
-    const podeAvancar = idx < ORDEM.length - 1;
+    const podeAvancar = idx !== -1 && idx < ORDEM.length - 1;
+    const podeVoltar  = idx > 0;
+    const podeNegar   = !finalizado(p.status);
 
     const itensHTML = p.itens.map(item => `
       <div class="item-row">
         <div>
-          <div>${item.qtd}× ${item.nome}</div>
+          <div>${item.qtd}× ${escapeHtml(item.nome)}</div>
           ${item.extras && item.extras.length
-            ? `<div class="item-extras">${item.extras.join(', ')}</div>`
+            ? `<div class="item-extras">${escapeHtml(item.extras.join(', '))}</div>`
             : ''}
         </div>
         <div>R$ ${(item.preco * item.qtd).toFixed(2)}</div>
@@ -396,6 +513,7 @@ async function render() {
       confirmado: '🛵 Marcar a Caminho',
       a_caminho:  '🎉 Marcar como Entregue',
       entregue:   'Entregue',
+      recusado:   'Recusado',
     }[p.status];
 
     const proximoClass = {
@@ -403,6 +521,7 @@ async function render() {
       confirmado: 'btn-caminho',
       a_caminho:  'btn-entregue',
       entregue:   'btn-entregue',
+      recusado:   'btn-recusado',
     }[p.status];
 
     // Exibe apenas os últimos 5 dígitos do ID para leitura rápida
@@ -418,9 +537,9 @@ async function render() {
         </div>
 
         <div class="pedido-info">
-          <strong>👤 ${p.cliente.nome}</strong><br>
-          📞 ${p.cliente.tel}<br>
-          🏠 ${p.cliente.end}
+          <strong>👤 ${escapeHtml(p.cliente.nome)}</strong><br>
+          📞 ${escapeHtml(p.cliente.tel)}<br>
+          🏠 ${escapeHtml(p.cliente.end)}
         </div>
 
         ${p.observacao ? `<div class="pedido-obs">📝 ${escapeHtml(p.observacao)}</div>` : ''}
@@ -453,21 +572,30 @@ async function render() {
             ${!podeAvancar ? 'disabled' : ''}>
             ${proximoLabel}
           </button>
+          ${podeVoltar ? `
+            <button class="btn-acao btn-voltar" onclick="voltarStatus(${p.id})" title="Desfazer último avanço de status">
+              ↩️ Voltar Status
+            </button>` : ''}
+          <button class="btn-acao btn-imprimir" onclick="imprimirPedido(${p.id})">
+            🖨️ Imprimir
+          </button>
           ${linkWA ? `
             <a class="btn-acao btn-whatsapp" href="${linkWA}" target="_blank" rel="noopener">
               📲 Avisar no WhatsApp
             </a>` : ''}
+          ${podeNegar ? `
+            <button class="btn-acao btn-negar" onclick="negarPedido(${p.id})">
+              🚫 Negar Pedido
+            </button>` : ''}
         </div>
       </div>`;
   }).join('');
 }
 
-// Atualiza a cada 5 segundos para pegar novos pedidos (e pendentes de Pix)
+// Atualiza a cada 5 segundos para pegar novos pedidos
 atualizarBotaoNotificacao();
 render();
-renderPendentes();
 setInterval(render, 5000);
-setInterval(renderPendentes, 5000);
 
 // Histórico de vendas muda devagar — não precisa do polling rápido
 renderVendasSemana();

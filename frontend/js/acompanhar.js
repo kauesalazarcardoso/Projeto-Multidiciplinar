@@ -10,8 +10,12 @@ const STEPS = [
 ];
 
 const ORDEM = ['aguardando', 'confirmado', 'a_caminho', 'entregue'];
-const CHAVE_PIX = '50633540000180';
-const NUMERO_WHATSAPP_LOJA = '5551994834263';
+
+function escapeHtml(texto) {
+  const div = document.createElement('div');
+  div.textContent = texto;
+  return div.innerHTML;
+}
 
 function getIds() {
   try { return JSON.parse(localStorage.getItem('pedidoIds') || '[]'); }
@@ -41,8 +45,8 @@ async function fetchPedido(id) {
 }
 
 function cardHTML(pedido) {
-  if (pedido.status === 'pendente_pagamento') {
-    return cardPendentePagamentoHTML(pedido);
+  if (pedido.status === 'recusado') {
+    return cardRecusadoHTML(pedido);
   }
 
   const statusIdx = ORDEM.indexOf(pedido.status);
@@ -62,9 +66,9 @@ function cardHTML(pedido) {
   const itensHTML = pedido.itens.map(item => `
     <div class="item-linha">
       <div>
-        <div>${item.qtd}× ${item.nome}</div>
+        <div>${item.qtd}× ${escapeHtml(item.nome)}</div>
         ${item.extras && item.extras.length
-          ? `<div class="item-extras">${item.extras.join(', ')}</div>`
+          ? `<div class="item-extras">${escapeHtml(item.extras.join(', '))}</div>`
           : ''}
       </div>
       <div>R$ ${(item.preco * item.qtd).toFixed(2)}</div>
@@ -74,9 +78,9 @@ function cardHTML(pedido) {
     <div class="pedido-card">
       <h2>Pedido das ${pedido.hora}</h2>
       <div class="dados-cliente">
-        <strong>📍 ${pedido.cliente.nome}</strong><br>
-        📞 ${pedido.cliente.tel}<br>
-        🏠 ${pedido.cliente.end}
+        <strong>📍 ${escapeHtml(pedido.cliente.nome)}</strong><br>
+        📞 ${escapeHtml(pedido.cliente.tel)}<br>
+        🏠 ${escapeHtml(pedido.cliente.end)}
       </div>
       <div class="timeline">${stepsHTML}</div>
       <h3 class="itens-titulo">Itens do Pedido</h3>
@@ -101,55 +105,25 @@ function cardHTML(pedido) {
     </div>`;
 }
 
-function linkWhatsappComprovante(pedido) {
-  const idCurto  = String(pedido.id).slice(-5);
-  const mensagem = `Olá! Segue o comprovante do Pix do pedido #${idCurto}.`;
-  return `https://wa.me/${NUMERO_WHATSAPP_LOJA}?text=${encodeURIComponent(mensagem)}`;
-}
-
-function cardPendentePagamentoHTML(pedido) {
+function cardRecusadoHTML(pedido) {
   return `
     <div class="pedido-card">
       <h2>Pedido das ${pedido.hora}</h2>
       <div class="dados-cliente">
-        <strong>📍 ${pedido.cliente.nome}</strong><br>
-        📞 ${pedido.cliente.tel}<br>
-        🏠 ${pedido.cliente.end}
+        <strong>📍 ${escapeHtml(pedido.cliente.nome)}</strong><br>
+        📞 ${escapeHtml(pedido.cliente.tel)}<br>
+        🏠 ${escapeHtml(pedido.cliente.end)}
       </div>
       <div class="item-linha">
-        <div>🕐 Aguardando confirmação do pagamento via Pix…</div>
+        <div>🚫 Este pedido não pôde ser aceito pelo estabelecimento.</div>
       </div>
-      <p class="pix-info">Pague usando a chave Pix abaixo e envie o comprovante pelo WhatsApp
-        da loja para confirmarmos seu pedido.</p>
-      <div class="cartao-campos-linha">
-        <input type="text" readonly value="${CHAVE_PIX}">
-        <button type="button" class="btn-copiar" onclick="copiarCodigoPix(this)">Copiar</button>
-      </div>
-      <a class="btn-whatsapp-comprovante" href="${linkWhatsappComprovante(pedido)}" target="_blank" rel="noopener">
-        📲 Enviar comprovante pelo WhatsApp
-      </a>
-      <div class="total-linha">
-        <span>Total</span>
-        <span>R$ ${Number(pedido.total).toFixed(2)}</span>
-      </div>
+      <p class="pix-info">Entre em contato pelo WhatsApp da loja se tiver dúvidas.</p>
     </div>`;
-}
-
-function copiarCodigoPix(botao) {
-  const input = botao.previousElementSibling;
-  if (!input || !input.value) return;
-  navigator.clipboard.writeText(input.value).then(() => {
-    const original = botao.textContent;
-    botao.textContent = 'Copiado!';
-    setTimeout(() => { botao.textContent = original; }, 2000);
-  });
 }
 
 function formatarPagamento(pedido) {
   if (pedido.forma_pagamento === 'cartao') {
-    return pedido.cartao_ultimos4
-      ? `Cartão •••• ${pedido.cartao_ultimos4} (${pedido.cartao_bandeira || 'Outro'})`
-      : 'Cartão (maquininha na entrega)';
+    return 'Cartão (maquininha na entrega)';
   }
   if (pedido.forma_pagamento === 'dinheiro') {
     return pedido.troco_para
@@ -189,12 +163,12 @@ async function render() {
     return;
   }
 
-  pedidos.forEach(p => { if (p.status === 'entregue') removeId(p.id); });
+  pedidos.forEach(p => { if (p.status === 'entregue' || p.status === 'recusado') removeId(p.id); });
 
   el.innerHTML = pedidos.map(cardHTML).join('') +
     `<a class="btn-voltar" href="pedido.html">Fazer Novo Pedido</a>`;
 
-  if (pedidos.every(p => p.status === 'entregue')) clearInterval(intervalo);
+  if (pedidos.every(p => p.status === 'entregue' || p.status === 'recusado')) clearInterval(intervalo);
 }
 
 render();

@@ -1,7 +1,6 @@
 const API = location.hostname === 'localhost'
   ? 'http://localhost:5000'
   : 'https://acai-express-backend.onrender.com';
-const TAXA_ENTREGA = 3.0;
 // Deve espelhar TAXA_MAQUININHA_ATE_50/TAXA_MAQUININHA_ACIMA_50/LIMITE_ITENS_TAXA_MAQUININHA
 // em backend/back/routes/pedidos.py
 const TAXA_MAQUININHA_ATE_50 = 2.0;
@@ -17,8 +16,42 @@ const ORDEM_CATEGORIAS_COMPLEMENTOS = ["Calda", "Frutas", "Complementos Gratuito
 
 let produtos     = [];
 let complementos = [];
+let bairros      = [];
 
 let carrinho = [];
+
+function renderBairros() {
+  const select = document.getElementById('input-bairro');
+  const atual  = select.value;
+  select.innerHTML = '';
+  const optPlaceholder = document.createElement('option');
+  optPlaceholder.value = '';
+  optPlaceholder.disabled = true;
+  optPlaceholder.textContent = 'Selecione o bairro';
+  select.appendChild(optPlaceholder);
+  bairros.forEach(b => {
+    const opt = document.createElement('option');
+    opt.value = b.nome;
+    opt.textContent = `${b.nome} — R$ ${b.taxa.toFixed(2)}`;
+    select.appendChild(opt);
+  });
+  if (atual && bairros.some(b => b.nome === atual)) {
+    select.value = atual;
+  } else {
+    optPlaceholder.selected = true;
+  }
+}
+
+function taxaEntregaSelecionada() {
+  const nome   = document.getElementById('input-bairro').value;
+  const bairro = bairros.find(b => b.nome === nome);
+  return bairro ? bairro.taxa : 0;
+}
+
+function atualizarTaxaEntrega() {
+  updateUI();
+  atualizarResumoModal();
+}
 
 function limitarAcompanhamentos(produtoId) {
   const checkboxes = document.querySelectorAll(`.check-${produtoId}`);
@@ -134,7 +167,7 @@ function calcularTaxaMaquininha() {
 function calcularTotal() {
   const subtotal = carrinho.reduce((s, i) => s + i.preco * i.qtd, 0);
   if (carrinho.length === 0) return 0;
-  return subtotal + TAXA_ENTREGA + calcularTaxaMaquininha();
+  return subtotal + taxaEntregaSelecionada() + calcularTaxaMaquininha();
 }
 
 function updateUI() {
@@ -156,7 +189,7 @@ function updateUI() {
         </div>
       </div>`;
   }).join('');
-  const taxaEntrega    = qtdTotal > 0 ? TAXA_ENTREGA : 0;
+  const taxaEntrega    = qtdTotal > 0 ? taxaEntregaSelecionada() : 0;
   const taxaMaquininha = qtdTotal > 0 ? calcularTaxaMaquininha() : 0;
   document.getElementById('cart-count').innerText = qtdTotal;
   document.getElementById('cart-taxa').innerText  = `R$ ${taxaEntrega.toFixed(2)}`;
@@ -173,7 +206,7 @@ function updateUI() {
 
 function atualizarResumoModal() {
   const taxaMaquininha = calcularTaxaMaquininha();
-  document.getElementById('modal-resumo-taxa').textContent = `R$ ${TAXA_ENTREGA.toFixed(2)}`;
+  document.getElementById('modal-resumo-taxa').textContent = `R$ ${taxaEntregaSelecionada().toFixed(2)}`;
   document.getElementById('modal-resumo-total').textContent = `R$ ${calcularTotal().toFixed(2)}`;
 
   const linhaMaquininha = document.getElementById('modal-resumo-maquininha-linha');
@@ -274,6 +307,7 @@ async function confirmarPedido() {
     const payload = {
       cliente: { nome, tel, end },
       itens: carrinho.map(i => ({ nome: i.nome, preco: i.preco, extras: i.extras, qtd: i.qtd })),
+      bairro,
       total: calcularTotal(),
       forma_pagamento: forma,
     };
@@ -312,14 +346,16 @@ async function confirmarPedido() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   try {
-    const [resProd, resComp] = await Promise.all([
+    const [resProd, resComp, resBairros] = await Promise.all([
       fetch(`${API}/cardapio`),
       fetch(`${API}/complementos`),
+      fetch(`${API}/bairros`),
     ]);
     produtos     = await resProd.json();
     complementos = await resComp.json();
+    bairros      = await resBairros.json();
   } catch (e) {
-    console.error('Erro ao carregar cardápio/complementos:', e);
+    console.error('Erro ao carregar cardápio/complementos/bairros:', e);
     document.getElementById('produtos-grid').innerHTML =
       '<p style="text-align:center;color:#e74c3c">Erro ao carregar cardápio. Verifique a conexão.</p>';
     return;
@@ -327,6 +363,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   renderCategoriaTabs();
   renderVitrine();
+  renderBairros();
   const ids = JSON.parse(localStorage.getItem('pedidoIds') || '[]');
   if (ids.length > 0) {
     const link = document.getElementById('link-acompanhar');

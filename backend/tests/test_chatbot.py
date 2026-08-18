@@ -65,6 +65,7 @@ def test_tool_criar_pedido_sucesso(client):
     entrada = {
         "cliente": {"nome": "Ana", "tel": "51988887777", "end": "Rua Y, 45"},
         "itens": [{"nome": "Açaí 300ml", "preco": 15.0, "qtd": 1}],
+        "bairro": "Centro",
         "total": 18.0,
         "forma_pagamento": "dinheiro",
         "troco_para": 20.0,
@@ -96,6 +97,23 @@ def test_tools_nao_tem_mais_mercado_pago():
     assert "gerar_link_pagamento_cartao" not in nomes
     assert "verificar_pagamento_cartao" not in nomes
     assert "criar_pedido" in nomes
+
+
+def test_tool_consultar_bairros(client):
+    resultado = json.loads(chatbot_gemini.executar_tool("consultar_bairros", {}, "sessao-bairros"))
+    nomes = [b["nome"] for b in resultado]
+    assert "Centro" in nomes
+
+
+def test_tool_criar_pedido_sem_bairro_falha(client):
+    entrada = {
+        "cliente": {"nome": "Ana", "tel": "51988887777", "end": "Rua Y, 45"},
+        "itens": [{"nome": "Açaí 300ml", "preco": 15.0, "qtd": 1}],
+        "total": 15.0,
+        "forma_pagamento": "dinheiro",
+    }
+    resultado = json.loads(chatbot_gemini.executar_tool("criar_pedido", entrada, "sessao-sem-bairro"))
+    assert "erro" in resultado
 
 
 # ── Loop de tool use (mockando o cliente Gemini) ────────────────────

@@ -36,20 +36,24 @@ preço de cada complemento pago escolhido ao preço do item antes de montar o to
 explique educadamente o motivo (se "fechado_hoje", diga que não abrimos nesse dia; se \
 "fora_do_horario", informe o horário de funcionamento do dia) e agradeça o contato — não \
 continue o fluxo de pedido.
-- Colete: itens desejados (com tamanho/sabor), nome do cliente, telefone e endereço de entrega. \
+- Colete: itens desejados (com tamanho/sabor), nome do cliente, telefone e endereço de entrega \
+(rua, número e bairro). O bairro precisa ser um dos cadastrados — chame consultar_bairros para \
+saber quais bairros existem e a taxa de entrega de cada um (ela varia por bairro, não é mais \
+fixa). Se o cliente disser um bairro que não está na lista, avise e peça pra confirmar ou \
+escolher outro. Ao chamar criar_pedido, passe o nome do bairro exatamente como veio de \
+consultar_bairros no campo "bairro", e use a taxa dele (não um valor fixo) ao montar o total. \
 Se o cliente mencionar alguma observação especial do pedido (ex: sem cebola, trocar embalagem, \
 ponto de referência), inclua no campo observacao ao chamar criar_pedido.
 - Pergunte a forma de pagamento: Pix, cartão ou dinheiro.
-  - Pix: a taxa de entrega é R$3,00. Informe a chave Pix "50633540000180" para o cliente pagar, \
-e explique que depois de pagar ele deve enviar o comprovante pelo WhatsApp da loja, \
-(51) 99483-4263. Pode chamar criar_pedido com forma_pagamento "pix" assim que o pedido estiver \
-fechado, sem esperar confirmação de pagamento nenhuma (o pedido já nasce aguardando o \
-comprovante).
+  - Pix: informe a chave Pix "50633540000180" para o cliente pagar, e explique que depois de \
+pagar ele deve enviar o comprovante pelo WhatsApp da loja, (51) 99483-4263. Pode chamar \
+criar_pedido com forma_pagamento "pix" assim que o pedido estiver fechado, sem esperar \
+confirmação de pagamento nenhuma — o pedido já entra direto na fila normal, igual aos outros.
   - Cartão: o pagamento é feito na entrega, com maquininha física que o entregador leva. A taxa \
-de entrega continua sendo R$3,00 normalmente — a maquininha cobra uma taxa própria e separada: \
-R$2,00 em compras de até R$50,00 em itens, ou R$3,00 em compras acima de R$50,00. Pode chamar \
-criar_pedido com forma_pagamento "cartao" direto, sem nenhuma verificação prévia.
-  - Dinheiro: taxa de entrega R$3,00. Pergunte se precisa de troco e para qual valor.
+de entrega do bairro continua normal — a maquininha cobra, além dela, uma taxa própria e \
+separada: R$2,00 em compras de até R$50,00 em itens, ou R$3,00 em compras acima de R$50,00. \
+Pode chamar criar_pedido com forma_pagamento "cartao" direto, sem nenhuma verificação prévia.
+  - Dinheiro: pergunte se precisa de troco e para qual valor.
 - Revalide o horário de funcionamento (consultar_horario) logo antes de chamar criar_pedido, \
 pois a loja pode ter fechado durante a conversa.
 - Depois de criar o pedido com sucesso, informe o número do pedido e agradeça. Para pedidos \
@@ -70,6 +74,15 @@ TOOLS = [
         "description": "Retorna a lista de complementos/adicionais disponíveis, cada um com "
                         "seu preço (preço 0 significa que é grátis; os demais têm custo "
                         "adicional que deve ser somado ao preço do item).",
+        "parameters": {"type": "object", "properties": {}},
+    },
+    {
+        "type": "function",
+        "name": "consultar_bairros",
+        "description": "Retorna a lista de bairros para os quais a loja entrega, cada um com "
+                        "sua taxa de entrega (a taxa varia por bairro). Use para saber se o "
+                        "bairro do cliente é atendido e qual o valor certo da taxa antes de "
+                        "montar o total e chamar criar_pedido.",
         "parameters": {"type": "object", "properties": {}},
     },
     {
@@ -115,17 +128,23 @@ TOOLS = [
                         "required": ["nome", "preco", "qtd"],
                     },
                 },
+                "bairro": {
+                    "type": "string",
+                    "description": "Nome do bairro de entrega, exatamente como retornado por "
+                                    "consultar_bairros — precisa ser um bairro cadastrado.",
+                },
                 "total": {
                     "type": "number",
-                    "description": "Soma dos itens + taxa de entrega (sempre R$3,00) + taxa da "
-                                    "maquininha (só para cartão: R$2,00 se os itens somarem até "
-                                    "R$50,00, ou R$3,00 se somarem mais que isso).",
+                    "description": "Soma dos itens + taxa de entrega do bairro (ver "
+                                    "consultar_bairros) + taxa da maquininha (só para cartão: "
+                                    "R$2,00 se os itens somarem até R$50,00, ou R$3,00 se "
+                                    "somarem mais que isso).",
                 },
                 "forma_pagamento": {"type": "string", "enum": ["pix", "cartao", "dinheiro"]},
                 "troco_para": {"type": "number", "description": "Opcional, só para dinheiro"},
                 "observacao": {"type": "string", "description": "Opcional, observação especial do pedido"},
             },
-            "required": ["cliente", "itens", "total", "forma_pagamento"],
+            "required": ["cliente", "itens", "bairro", "total", "forma_pagamento"],
         },
     },
 ]
@@ -147,6 +166,12 @@ def _consultar_complementos():
     return [{"id": r["id"], "nome": r["nome"], "preco": r["preco"]} for r in rows]
 
 
+def _consultar_bairros():
+    with get_conn() as conn:
+        rows = conn.execute("SELECT nome, taxa FROM bairros ORDER BY nome").fetchall()
+    return [{"nome": r["nome"], "taxa": r["taxa"]} for r in rows]
+
+
 def _consultar_horario():
     aberto, motivo = horario_mod.esta_aberto()
     return {"aberto_agora": aberto, "motivo": motivo, "horarios": horario_mod.buscar_horarios()}
@@ -159,6 +184,9 @@ def executar_tool(nome, entrada, sessao_id):
 
     if nome == "consultar_complementos":
         return json.dumps(_consultar_complementos(), ensure_ascii=False)
+
+    if nome == "consultar_bairros":
+        return json.dumps(_consultar_bairros(), ensure_ascii=False)
 
     if nome == "consultar_horario":
         return json.dumps(_consultar_horario(), ensure_ascii=False)

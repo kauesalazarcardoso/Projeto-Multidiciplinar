@@ -76,7 +76,7 @@ body {
 .pedido-card.confirmado { border-left-color: var(--azul); }
 .pedido-card.a_caminho  { border-left-color: var(--secondary); }
 .pedido-card.entregue   { border-left-color: var(--accent); opacity: 0.7; }
-.pedido-card.pendente-pagamento { border-left-color: #c0355f; }
+.pedido-card.recusado   { border-left-color: #b91c1c; opacity: 0.7; }
 
 .pedido-obs {
   background: #fff8e6;
@@ -124,7 +124,7 @@ body {
 .badge.confirmado { background: var(--azul); }
 .badge.a_caminho  { background: var(--secondary); }
 .badge.entregue   { background: var(--accent); }
-.badge.pendente-pagamento { background: #c0355f; }
+.badge.recusado   { background: #b91c1c; }
 
 .pedido-info {
   font-size: 0.9rem;
@@ -195,9 +195,12 @@ body {
 .btn-caminho   { background: var(--secondary); color: white; }
 .btn-entregue  { background: var(--accent);    color: white; }
 .btn-whatsapp  { background: #25d366;          color: white; }
-.btn-confirmar-pagamento { background: #c0355f; color: white; }
+.btn-imprimir  { background: #555;             color: white; flex: 0 1 auto; min-width: 110px; }
+.btn-voltar    { background: white; color: #666; border: 1.5px solid #ccc; flex: 0 1 auto; min-width: 130px; }
+.btn-negar     { background: #b91c1c;          color: white; }
+.btn-recusado  { background: #999;             color: white; }
 
-/* SEÇÕES: PENDENTES DE COMPROVANTE / HISTÓRICO DE VENDAS */
+/* SEÇÕES: HISTÓRICO DE PEDIDOS / HISTÓRICO DE VENDAS */
 .secao-titulo {
   font-family: 'Baloo 2', cursive;
   color: var(--primary);
@@ -205,10 +208,10 @@ body {
   margin: 0 0 12px;
 }
 
-.lista-pendentes:empty,
+.lista-historico:empty,
 .vendas-semana:empty { margin: 0; }
 
-.lista-pendentes { margin-bottom: 24px; }
+.lista-historico { margin-bottom: 24px; }
 
 .vendas-semana {
   background: white;

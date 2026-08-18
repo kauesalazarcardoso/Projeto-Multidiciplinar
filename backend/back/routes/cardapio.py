@@ -158,3 +158,71 @@ def remover_complemento(comp_id):
         if cur.rowcount == 0:
             return jsonify({"erro": "Complemento não encontrado"}), 404
     return jsonify({"deletado": comp_id})
+
+
+def _validar_taxa_bairro(data):
+    taxa = data.get("taxa")
+    if not isinstance(taxa, (int, float)) or taxa < 0:
+        return None, jsonify({"erro": "Taxa deve ser um número maior ou igual a zero"}), 400
+    return taxa, None, None
+
+
+@cardapio_bp.route("/bairros", methods=["GET"])
+def listar_bairros():
+    with get_conn() as conn:
+        rows = conn.execute("SELECT id, nome, taxa FROM bairros ORDER BY nome").fetchall()
+    return jsonify([{"id": r["id"], "nome": r["nome"], "taxa": r["taxa"]} for r in rows])
+
+
+@cardapio_bp.route("/bairros", methods=["POST"])
+@login_required
+def criar_bairro():
+    data = request.get_json()
+    if not data or not str(data.get("nome", "")).strip():
+        return jsonify({"erro": "Campo 'nome' é obrigatório"}), 400
+    nome = str(data["nome"]).strip()
+    taxa, erro_resp, status = _validar_taxa_bairro(data)
+    if erro_resp:
+        return erro_resp, status
+    try:
+        with get_conn() as conn:
+            cur = conn.execute(
+                "INSERT INTO bairros (nome, taxa) VALUES (%s, %s) RETURNING id",
+                (nome, taxa)
+            )
+            return jsonify({"id": cur.fetchone()["id"], "nome": nome, "taxa": taxa}), 201
+    except UniqueViolation:
+        return jsonify({"erro": "Bairro já cadastrado"}), 409
+
+
+@cardapio_bp.route("/bairros/<int:bairro_id>", methods=["PUT"])
+@login_required
+def editar_bairro(bairro_id):
+    data = request.get_json()
+    if not data or not str(data.get("nome", "")).strip():
+        return jsonify({"erro": "Campo 'nome' é obrigatório"}), 400
+    nome = str(data["nome"]).strip()
+    taxa, erro_resp, status = _validar_taxa_bairro(data)
+    if erro_resp:
+        return erro_resp, status
+    try:
+        with get_conn() as conn:
+            cur = conn.execute(
+                "UPDATE bairros SET nome = %s, taxa = %s WHERE id = %s",
+                (nome, taxa, bairro_id)
+            )
+            if cur.rowcount == 0:
+                return jsonify({"erro": "Bairro não encontrado"}), 404
+    except UniqueViolation:
+        return jsonify({"erro": "Já existe um bairro com esse nome"}), 409
+    return jsonify({"id": bairro_id, "nome": nome, "taxa": taxa})
+
+
+@cardapio_bp.route("/bairros/<int:bairro_id>", methods=["DELETE"])
+@login_required
+def remover_bairro(bairro_id):
+    with get_conn() as conn:
+        cur = conn.execute("DELETE FROM bairros WHERE id = %s", (bairro_id,))
+        if cur.rowcount == 0:
+            return jsonify({"erro": "Bairro não encontrado"}), 404
+    return jsonify({"deletado": bairro_id})

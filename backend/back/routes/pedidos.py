@@ -23,16 +23,14 @@ class PedidoInvalido(Exception):
 
 ORDEM_STATUS = ['aguardando', 'confirmado', 'a_caminho', 'entregue']
 FORMAS_PAGAMENTO = ('pix', 'cartao', 'dinheiro')
-TAXA_ENTREGA = 3.0
 TAXA_MAQUININHA_ATE_50 = 2.0
 TAXA_MAQUININHA_ACIMA_50 = 3.0
 LIMITE_ITENS_TAXA_MAQUININHA = 50.0
-STATUS_PENDENTE_PAGAMENTO = 'pendente_pagamento'
+STATUS_RECUSADO = 'recusado'
 
 _COLUNAS_PEDIDO = (
     "id, cliente, itens, total, status, hora, forma_pagamento, taxa_entrega, "
-    "taxa_maquininha, cartao_ultimos4, cartao_bandeira, mp_order_id, pix_qr_base64, "
-    "pix_copia_cola, troco_para, observacao"
+    "taxa_maquininha, troco_para, observacao"
 )
 
 
@@ -47,20 +45,15 @@ def _serializar_pedido(row):
         "forma_pagamento":  row["forma_pagamento"],
         "taxa_entrega":     row["taxa_entrega"],
         "taxa_maquininha":  row["taxa_maquininha"],
-        "cartao_ultimos4":  row["cartao_ultimos4"],
-        "cartao_bandeira":  row["cartao_bandeira"],
-        "pix_qr_base64":    row["pix_qr_base64"],
-        "pix_copia_cola":   row["pix_copia_cola"],
         "troco_para":       row["troco_para"],
         "observacao":       row["observacao"],
     }
 
 
-def _notificar_gestor(pedido_id, cliente, total, pendente_pagamento=False):
+def _notificar_gestor(pedido_id, cliente, total):
     nome = cliente.get("nome", "Cliente")
-    titulo = "Novo pedido Pix — aguardando comprovante" if pendente_pagamento else "Novo pedido recebido!"
     push.enviar_para_todos(
-        titulo,
+        "Novo pedido recebido!",
         f"Pedido #{str(pedido_id)[-5:]} — {nome} — R$ {total:.2f}",
         f"pedido-{pedido_id}",
     )
@@ -72,22 +65,24 @@ def listar_pedidos():
     with get_conn() as conn:
         rows = conn.execute(
             f"SELECT {_COLUNAS_PEDIDO} FROM pedidos "
-            "WHERE status != %s AND arquivado = FALSE ORDER BY id DESC",
-            (STATUS_PENDENTE_PAGAMENTO,)
+            "WHERE arquivado = FALSE ORDER BY id DESC"
         ).fetchall()
     return jsonify([_serializar_pedido(r) for r in rows])
 
 
-@pedidos_bp.route("/pedidos/pendentes", methods=["GET"])
+@pedidos_bp.route("/pedidos/historico", methods=["GET"])
 @login_required
-def listar_pendentes():
-    """Pedidos Pix aguardando o gestor confirmar o comprovante enviado pelo
-    cliente via WhatsApp (não há mais confirmação automática de gateway)."""
+def historico_pedidos():
+    """Pedidos entregues/recusados dos últimos 7 dias, incluindo os já
+    arquivados por 'Limpar Entregues/Recusados' — pra o gestor achar um
+    pedido antigo e, se precisar, usar 'Voltar Status' nele de novo."""
     with get_conn() as conn:
         rows = conn.execute(
             f"SELECT {_COLUNAS_PEDIDO} FROM pedidos "
-            "WHERE status = %s ORDER BY id DESC",
-            (STATUS_PENDENTE_PAGAMENTO,)
+            "WHERE status IN ('entregue', %s) "
+            "AND to_timestamp(id / 1000.0) >= NOW() - INTERVAL '7 days' "
+            "ORDER BY id DESC",
+            (STATUS_RECUSADO,)
         ).fetchall()
     return jsonify([_serializar_pedido(r) for r in rows])
 
@@ -165,18 +160,34 @@ def _normalizar_observacao(data):
 
 
 def _calcular_taxa_maquininha(forma_pagamento, itens):
-    """A taxa de entrega (R$3) é sempre a mesma, independente da forma de
-    pagamento. Cartão paga na entrega com maquininha física, que cobra uma
-    taxa PRÓPRIA e separada: R$2 quando os itens (sem taxas) somam até R$50;
-    R$3 quando somam mais que isso."""
+    """Cartão paga na entrega com maquininha física, que cobra uma taxa
+    PRÓPRIA e separada da taxa de entrega: R$2 quando os itens (sem taxas)
+    somam até R$50; R$3 quando somam mais que isso."""
     if forma_pagamento != "cartao":
         return 0.0
     subtotal_itens = sum(item["preco"] * item.get("qtd", 1) for item in itens)
     return TAXA_MAQUININHA_ATE_50 if subtotal_itens <= LIMITE_ITENS_TAXA_MAQUININHA else TAXA_MAQUININHA_ACIMA_50
 
 
-def _inserir_pedido(data, forma_pagamento, status_pedido, *, taxa_maquininha=0.0,
-                     troco_para=None, observacao=None):
+def _buscar_taxa_bairro(data):
+    """A taxa de entrega varia por bairro (cadastrado/editável no painel
+    Admin). O cliente escolhe o bairro numa caixinha de seleção — não digita
+    livremente — então aqui é sempre um match exato contra o que está
+    cadastrado."""
+    bairro = str(data.get("bairro", "")).strip()
+    if not bairro:
+        raise PedidoInvalido("Campo 'bairro' é obrigatório", 400)
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT taxa FROM bairros WHERE nome = %s", (bairro,)
+        ).fetchone()
+    if not row:
+        raise PedidoInvalido("Bairro inválido para entrega", 400)
+    return row["taxa"]
+
+
+def _inserir_pedido(data, forma_pagamento, status_pedido, *, taxa_entrega,
+                     taxa_maquininha=0.0, troco_para=None, observacao=None):
     pedido_id = int(time.time() * 1000)
     hora      = datetime.now().strftime("%H:%M")
 
@@ -194,17 +205,14 @@ def _inserir_pedido(data, forma_pagamento, status_pedido, *, taxa_maquininha=0.0
                 status_pedido,
                 hora,
                 forma_pagamento,
-                TAXA_ENTREGA,
+                taxa_entrega,
                 taxa_maquininha,
                 troco_para,
                 observacao,
             )
         )
 
-    _notificar_gestor(
-        pedido_id, data["cliente"], data["total"],
-        pendente_pagamento=(status_pedido == STATUS_PENDENTE_PAGAMENTO)
-    )
+    _notificar_gestor(pedido_id, data["cliente"], data["total"])
 
     return {"id": pedido_id, "hora": hora, "status": status_pedido}
 
@@ -212,11 +220,12 @@ def _inserir_pedido(data, forma_pagamento, status_pedido, *, taxa_maquininha=0.0
 def _criar_pedido_interno(data):
     """Valida e grava um pedido. Levanta PedidoInvalido em caso de erro.
     Retorna {"id", "hora", "status"} em caso de sucesso. Reaproveitado tanto
-    pela rota HTTP quanto pelo chatbot (tool criar_pedido) — nenhuma das duas
-    formas de pagamento online (Pix/cartão) depende mais de confirmação de
-    gateway: Pix sempre nasce pendente até o gestor confirmar manualmente o
-    comprovante recebido por WhatsApp; cartão é pago na entrega com
-    maquininha física, então entra direto na fila como dinheiro."""
+    pela rota HTTP quanto pelo chatbot (tool criar_pedido). Nenhuma forma de
+    pagamento depende de confirmação de gateway nem de aprovação manual do
+    gestor antes de entrar na fila: Pix e cartão são pagos por fora do app
+    (Pix por chave estática, cartão na entrega com maquininha física) e
+    entram direto como 'aguardando', igual dinheiro — a conferência do
+    pagamento acontece pelo WhatsApp, fora do fluxo da fila."""
     _checar_aberto()
     _validar_pedido_basico(data)
 
@@ -224,6 +233,7 @@ def _criar_pedido_interno(data):
     if forma_pagamento not in FORMAS_PAGAMENTO:
         raise PedidoInvalido("Forma de pagamento inválida", 400)
 
+    taxa_entrega = _buscar_taxa_bairro(data)
     observacao = _normalizar_observacao(data)
 
     if forma_pagamento == "dinheiro":
@@ -232,16 +242,16 @@ def _criar_pedido_interno(data):
             if not isinstance(data["troco_para"], (int, float)) or data["troco_para"] < data["total"]:
                 raise PedidoInvalido("Valor para troco inválido", 400)
             troco_para = data["troco_para"]
-        return _inserir_pedido(data, forma_pagamento, "aguardando",
+        return _inserir_pedido(data, forma_pagamento, "aguardando", taxa_entrega=taxa_entrega,
                                 troco_para=troco_para, observacao=observacao)
 
     if forma_pagamento == "cartao":
         taxa_maquininha = _calcular_taxa_maquininha(forma_pagamento, data["itens"])
-        return _inserir_pedido(data, forma_pagamento, "aguardando",
+        return _inserir_pedido(data, forma_pagamento, "aguardando", taxa_entrega=taxa_entrega,
                                 taxa_maquininha=taxa_maquininha, observacao=observacao)
 
     # pix
-    return _inserir_pedido(data, forma_pagamento, STATUS_PENDENTE_PAGAMENTO,
+    return _inserir_pedido(data, forma_pagamento, "aguardando", taxa_entrega=taxa_entrega,
                             observacao=observacao)
 
 
@@ -253,29 +263,6 @@ def criar_pedido():
     except PedidoInvalido as e:
         return jsonify({"erro": e.mensagem, **e.extra}), e.status_code
     return jsonify(resultado), 201
-
-
-@pedidos_bp.route("/pedidos/<int:pedido_id>/confirmar-pagamento", methods=["PATCH"])
-@login_required
-def confirmar_pagamento(pedido_id):
-    """O gestor confirma manualmente, depois de checar o comprovante do Pix
-    recebido pelo WhatsApp, que o pedido pode entrar na fila normal."""
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT status FROM pedidos WHERE id = %s", (pedido_id,)
-        ).fetchone()
-
-        if not row:
-            return jsonify({"erro": "Pedido não encontrado"}), 404
-
-        if row["status"] != STATUS_PENDENTE_PAGAMENTO:
-            return jsonify({"erro": "Pedido não está aguardando confirmação de pagamento"}), 400
-
-        conn.execute(
-            "UPDATE pedidos SET status = 'aguardando' WHERE id = %s", (pedido_id,)
-        )
-
-    return jsonify({"id": pedido_id, "status": "aguardando"})
 
 
 @pedidos_bp.route("/pedidos/<int:pedido_id>/status", methods=["PATCH"])
@@ -305,16 +292,73 @@ def avancar_status(pedido_id):
     return jsonify({"id": pedido_id, "status": novo_status})
 
 
+@pedidos_bp.route("/pedidos/<int:pedido_id>/status/voltar", methods=["PATCH"])
+@login_required
+def voltar_status(pedido_id):
+    """Desfaz um avanço de status por engano (ex: o gestor clicou 'Marcar
+    como Entregue' sem querer) — volta uma etapa em ORDEM_STATUS. Também
+    desarquiva o pedido, pra cobrir o caso dele já ter sido tirado da fila
+    por 'Limpar Entregues' antes do gestor perceber o engano."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT status FROM pedidos WHERE id = %s", (pedido_id,)
+        ).fetchone()
+
+        if not row:
+            return jsonify({"erro": "Pedido não encontrado"}), 404
+
+        if row["status"] not in ORDEM_STATUS:
+            return jsonify({"erro": "Não é possível voltar o status desse pedido"}), 400
+
+        idx = ORDEM_STATUS.index(row["status"])
+
+        if idx <= 0:
+            return jsonify({"erro": "Pedido já está no status inicial"}), 400
+
+        novo_status = ORDEM_STATUS[idx - 1]
+        conn.execute(
+            "UPDATE pedidos SET status = %s, arquivado = FALSE WHERE id = %s",
+            (novo_status, pedido_id)
+        )
+
+    return jsonify({"id": pedido_id, "status": novo_status})
+
+
+@pedidos_bp.route("/pedidos/<int:pedido_id>/recusar", methods=["PATCH"])
+@login_required
+def recusar_pedido(pedido_id):
+    """O gestor nega um pedido (ex: fora da área de entrega, item em falta).
+    Só pode recusar enquanto o pedido ainda não foi entregue nem já recusado."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT status FROM pedidos WHERE id = %s", (pedido_id,)
+        ).fetchone()
+
+        if not row:
+            return jsonify({"erro": "Pedido não encontrado"}), 404
+
+        if row["status"] in (ORDEM_STATUS[-1], STATUS_RECUSADO):
+            return jsonify({"erro": "Pedido não pode mais ser recusado"}), 400
+
+        conn.execute(
+            "UPDATE pedidos SET status = %s WHERE id = %s", (STATUS_RECUSADO, pedido_id)
+        )
+
+    return jsonify({"id": pedido_id, "status": STATUS_RECUSADO})
+
+
 @pedidos_bp.route("/pedidos/entregues", methods=["DELETE"])
 @login_required
 def limpar_entregues():
-    """Tira os pedidos entregues da fila do gestor sem apagar a linha do
-    banco — o histórico de vendas (/pedidos/vendas-por-dia) soma pedidos
-    'entregue' independente de arquivado, então limpar a fila não pode
-    fazer o valor do dia sumir do painel."""
+    """Tira os pedidos entregues e recusados da fila do gestor sem apagar a
+    linha do banco — o histórico de vendas (/pedidos/vendas-por-dia) soma
+    pedidos 'entregue' independente de arquivado, então limpar a fila não
+    pode fazer o valor do dia sumir do painel."""
     with get_conn() as conn:
         cur = conn.execute(
-            "UPDATE pedidos SET arquivado = TRUE WHERE status = 'entregue' AND arquivado = FALSE"
+            "UPDATE pedidos SET arquivado = TRUE "
+            "WHERE status IN ('entregue', %s) AND arquivado = FALSE",
+            (STATUS_RECUSADO,)
         )
         arquivados = cur.rowcount
 

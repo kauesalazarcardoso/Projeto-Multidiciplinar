@@ -6,6 +6,7 @@ def _criar_pedido_dinheiro(client, valor=20.0):
     pedido = {
         "cliente": {"nome": "Kauê"},
         "itens": [{"nome": "Açaí", "quantidade": 1}],
+        "bairro": "Centro",
         "total": valor,
         "forma_pagamento": "dinheiro",
     }
@@ -47,11 +48,121 @@ def test_avancar_status(client, auth_headers):
     assert data["status"] == "confirmado"
 
 
+def test_recusar_pedido(client, auth_headers):
+    criar = _criar_pedido_dinheiro(client, valor=25.0)
+    pedido_id = json.loads(criar.data)["id"]
+
+    response = client.patch(f"/pedidos/{pedido_id}/recusar", headers=auth_headers)
+
+    assert response.status_code == 200
+
+    data = json.loads(response.data)
+
+    assert data["status"] == "recusado"
+
+
+def test_recusar_pedido_ja_entregue_falha(client, auth_headers):
+    criar = _criar_pedido_dinheiro(client, valor=25.0)
+    pedido_id = json.loads(criar.data)["id"]
+
+    for _ in range(3):
+        client.patch(f"/pedidos/{pedido_id}/status", headers=auth_headers)
+
+    response = client.patch(f"/pedidos/{pedido_id}/recusar", headers=auth_headers)
+
+    assert response.status_code == 400
+
+
+def test_recusar_pedido_inexistente(client, auth_headers):
+    response = client.patch("/pedidos/999999/recusar", headers=auth_headers)
+
+    assert response.status_code == 404
+
+
+def test_recusar_pedido_sem_auth(client):
+    criar = _criar_pedido_dinheiro(client, valor=25.0)
+    pedido_id = json.loads(criar.data)["id"]
+
+    response = client.patch(f"/pedidos/{pedido_id}/recusar")
+
+    assert response.status_code == 401
+
+
 def test_limpar_entregues(client, auth_headers):
 
     response = client.delete("/pedidos/entregues", headers=auth_headers)
 
     assert response.status_code == 200
+
+
+def test_limpar_entregues_tambem_arquiva_recusados(client, auth_headers):
+    criar = _criar_pedido_dinheiro(client, valor=25.0)
+    pedido_id = json.loads(criar.data)["id"]
+
+    client.patch(f"/pedidos/{pedido_id}/recusar", headers=auth_headers)
+
+    limpar = client.delete("/pedidos/entregues", headers=auth_headers)
+    assert limpar.status_code == 200
+    assert json.loads(limpar.data)["arquivados"] == 1
+
+    ativos = json.loads(client.get("/pedidos", headers=auth_headers).data)
+    assert pedido_id not in [p["id"] for p in ativos]
+
+
+def test_voltar_status(client, auth_headers):
+    criar = _criar_pedido_dinheiro(client, valor=25.0)
+    pedido_id = json.loads(criar.data)["id"]
+
+    client.patch(f"/pedidos/{pedido_id}/status", headers=auth_headers)  # aguardando -> confirmado
+
+    response = client.patch(f"/pedidos/{pedido_id}/status/voltar", headers=auth_headers)
+
+    assert response.status_code == 200
+    assert json.loads(response.data)["status"] == "aguardando"
+
+
+def test_voltar_status_no_inicial_falha(client, auth_headers):
+    criar = _criar_pedido_dinheiro(client, valor=25.0)
+    pedido_id = json.loads(criar.data)["id"]
+
+    response = client.patch(f"/pedidos/{pedido_id}/status/voltar", headers=auth_headers)
+
+    assert response.status_code == 400
+
+
+def test_voltar_status_pedido_inexistente(client, auth_headers):
+    response = client.patch("/pedidos/999999/status/voltar", headers=auth_headers)
+
+    assert response.status_code == 404
+
+
+def test_voltar_status_exige_login(client):
+    criar = _criar_pedido_dinheiro(client, valor=25.0)
+    pedido_id = json.loads(criar.data)["id"]
+
+    response = client.patch(f"/pedidos/{pedido_id}/status/voltar")
+
+    assert response.status_code == 401
+
+
+def test_voltar_status_desarquiva_pedido(client, auth_headers):
+    criar = _criar_pedido_dinheiro(client, valor=25.0)
+    pedido_id = json.loads(criar.data)["id"]
+
+    for _ in range(3):
+        client.patch(f"/pedidos/{pedido_id}/status", headers=auth_headers)  # -> entregue
+
+    client.delete("/pedidos/entregues", headers=auth_headers)  # arquiva
+
+    ativos_antes = json.loads(client.get("/pedidos", headers=auth_headers).data)
+    assert pedido_id not in [p["id"] for p in ativos_antes]
+
+    voltar = client.patch(f"/pedidos/{pedido_id}/status/voltar", headers=auth_headers)
+    assert voltar.status_code == 200
+    assert json.loads(voltar.data)["status"] == "a_caminho"
+
+    ativos_depois = json.loads(client.get("/pedidos", headers=auth_headers).data)
+    assert pedido_id in [p["id"] for p in ativos_depois]
 
 
 def test_limpar_entregues_some_da_fila_mas_mantem_venda_no_historico(client, auth_headers):
@@ -117,6 +228,7 @@ def test_criar_pedido_dinheiro_com_troco(client):
     pedido = {
         "cliente": {"nome": "Kauê"},
         "itens": [{"nome": "Açaí", "quantidade": 1}],
+        "bairro": "Centro",
         "total": 20,
         "forma_pagamento": "dinheiro",
         "troco_para": 50
@@ -137,6 +249,7 @@ def test_criar_pedido_dinheiro_troco_menor_que_total_invalido(client):
     pedido = {
         "cliente": {"nome": "Kauê"},
         "itens": [{"nome": "Açaí", "quantidade": 1}],
+        "bairro": "Centro",
         "total": 20,
         "forma_pagamento": "dinheiro",
         "troco_para": 10
@@ -147,28 +260,29 @@ def test_criar_pedido_dinheiro_troco_menor_que_total_invalido(client):
     assert response.status_code == 400
 
 
-# ── Pix: nasce sempre pendente_pagamento, confirmação é manual ────
+# ── Pix: entra direto na fila normal, sem espera de confirmação ───
 
 def _criar_pedido_pix(client, valor=20.0):
     pedido = {
         "cliente": {"nome": "Kauê"},
         "itens": [{"nome": "Açaí", "quantidade": 1}],
+        "bairro": "Centro",
         "total": valor,
         "forma_pagamento": "pix",
     }
     return client.post("/pedidos", json=pedido)
 
 
-def test_criar_pedido_pix_sempre_pendente_pagamento(client):
+def test_criar_pedido_pix_vai_direto_aguardando(client):
     response = _criar_pedido_pix(client, valor=20.0)
 
     assert response.status_code == 201
 
     data = json.loads(response.data)
-    assert data["status"] == "pendente_pagamento"
+    assert data["status"] == "aguardando"
 
 
-def test_criar_pedido_pix_pendente_nao_aparece_em_listar(client, auth_headers):
+def test_criar_pedido_pix_aparece_em_listar(client, auth_headers):
     criar = _criar_pedido_pix(client, valor=20.0)
     assert criar.status_code == 201
 
@@ -176,66 +290,7 @@ def test_criar_pedido_pix_pendente_nao_aparece_em_listar(client, auth_headers):
 
     listagem = client.get("/pedidos", headers=auth_headers)
     ids_listados = [p["id"] for p in json.loads(listagem.data)]
-    assert pedido_id not in ids_listados
-
-    busca = client.get(f"/pedidos/{pedido_id}")
-    dados_busca = json.loads(busca.data)
-    assert dados_busca["status"] == "pendente_pagamento"
-
-
-def test_listar_pendentes_retorna_pix_aguardando(client, auth_headers):
-    criar = _criar_pedido_pix(client, valor=20.0)
-    pedido_id = json.loads(criar.data)["id"]
-
-    response = client.get("/pedidos/pendentes", headers=auth_headers)
-
-    assert response.status_code == 200
-    ids = [p["id"] for p in json.loads(response.data)]
-    assert pedido_id in ids
-
-
-def test_listar_pendentes_exige_login(client):
-    response = client.get("/pedidos/pendentes")
-
-    assert response.status_code == 401
-
-
-def test_confirmar_pagamento_move_para_aguardando(client, auth_headers):
-    criar = _criar_pedido_pix(client, valor=20.0)
-    pedido_id = json.loads(criar.data)["id"]
-
-    response = client.patch(f"/pedidos/{pedido_id}/confirmar-pagamento", headers=auth_headers)
-
-    assert response.status_code == 200
-    assert json.loads(response.data)["status"] == "aguardando"
-
-    listagem = client.get("/pedidos", headers=auth_headers)
-    ids_listados = [p["id"] for p in json.loads(listagem.data)]
     assert pedido_id in ids_listados
-
-
-def test_confirmar_pagamento_exige_login(client):
-    criar = _criar_pedido_pix(client, valor=20.0)
-    pedido_id = json.loads(criar.data)["id"]
-
-    response = client.patch(f"/pedidos/{pedido_id}/confirmar-pagamento")
-
-    assert response.status_code == 401
-
-
-def test_confirmar_pagamento_pedido_inexistente(client, auth_headers):
-    response = client.patch("/pedidos/999999/confirmar-pagamento", headers=auth_headers)
-
-    assert response.status_code == 404
-
-
-def test_confirmar_pagamento_pedido_ja_confirmado_falha(client, auth_headers):
-    criar = _criar_pedido_dinheiro(client, valor=20.0)
-    pedido_id = json.loads(criar.data)["id"]
-
-    response = client.patch(f"/pedidos/{pedido_id}/confirmar-pagamento", headers=auth_headers)
-
-    assert response.status_code == 400
 
 
 # ── Cartão: pago na entrega (maquininha), sem verificação online ──
@@ -244,6 +299,7 @@ def _criar_pedido_cartao(client, itens, total):
     pedido = {
         "cliente": {"nome": "Kauê"},
         "itens": itens,
+        "bairro": "Centro",
         "total": total,
         "forma_pagamento": "cartao",
     }
@@ -306,8 +362,6 @@ def test_criar_pedido_com_cartao_fluxo_completo(client):
 
     assert data["forma_pagamento"] == "cartao"
     assert data["status"] == "aguardando"
-    assert data["cartao_bandeira"] is None
-    assert data["cartao_ultimos4"] is None
 
 
 # ── Observação ──────────────────────────────────────────────────
@@ -316,6 +370,7 @@ def test_criar_pedido_com_observacao(client):
     pedido = {
         "cliente": {"nome": "Kauê"},
         "itens": [{"nome": "Açaí", "quantidade": 1}],
+        "bairro": "Centro",
         "total": 20,
         "forma_pagamento": "dinheiro",
         "observacao": "  sem leite condensado  ",
@@ -368,3 +423,179 @@ def test_vendas_por_dia_pedido_nao_entregue_nao_conta(client, auth_headers):
     dados = json.loads(response.data)
     total_geral = sum(d["total"] for d in dados)
     assert total_geral == 0
+
+
+# ── Taxa de entrega por bairro ─────────────────────────────────────
+
+def test_criar_pedido_sem_bairro_falha(client):
+    pedido = {
+        "cliente": {"nome": "Kauê"},
+        "itens": [{"nome": "Açaí", "quantidade": 1}],
+        "total": 20,
+        "forma_pagamento": "dinheiro",
+    }
+    response = client.post("/pedidos", json=pedido)
+    assert response.status_code == 400
+
+
+def test_criar_pedido_bairro_inexistente_falha(client):
+    pedido = {
+        "cliente": {"nome": "Kauê"},
+        "itens": [{"nome": "Açaí", "quantidade": 1}],
+        "bairro": "Bairro Que Não Existe",
+        "total": 20,
+        "forma_pagamento": "dinheiro",
+    }
+    response = client.post("/pedidos", json=pedido)
+    assert response.status_code == 400
+
+
+def test_criar_pedido_usa_taxa_do_bairro_cadastrado(client, auth_headers):
+    novo = client.post("/bairros", json={"nome": "Vila Rica", "taxa": 7.5}, headers=auth_headers)
+    assert novo.status_code == 201
+
+    pedido = {
+        "cliente": {"nome": "Kauê"},
+        "itens": [{"nome": "Açaí", "quantidade": 1}],
+        "bairro": "Vila Rica",
+        "total": 27.5,
+        "forma_pagamento": "dinheiro",
+    }
+    criar = client.post("/pedidos", json=pedido)
+    assert criar.status_code == 201
+    pedido_id = json.loads(criar.data)["id"]
+
+    dados = json.loads(client.get(f"/pedidos/{pedido_id}").data)
+    assert dados["taxa_entrega"] == 7.5
+
+
+# ── CRUD de bairros ──────────────────────────────────────────────
+
+def test_listar_bairros_publico_traz_seed_centro(client):
+    response = client.get("/bairros")
+
+    assert response.status_code == 200
+    nomes = [b["nome"] for b in json.loads(response.data)]
+    assert "Centro" in nomes
+
+
+def test_criar_bairro_exige_login(client):
+    response = client.post("/bairros", json={"nome": "Vila Nova", "taxa": 5.0})
+
+    assert response.status_code == 401
+
+
+def test_criar_bairro_taxa_invalida(client, auth_headers):
+    response = client.post("/bairros", json={"nome": "Vila Nova", "taxa": -1}, headers=auth_headers)
+
+    assert response.status_code == 400
+
+
+def test_criar_bairro_duplicado_falha(client, auth_headers):
+    client.post("/bairros", json={"nome": "Vila Nova", "taxa": 5.0}, headers=auth_headers)
+    resposta = client.post("/bairros", json={"nome": "Vila Nova", "taxa": 6.0}, headers=auth_headers)
+
+    assert resposta.status_code == 409
+
+
+def test_editar_bairro(client, auth_headers):
+    criar = client.post("/bairros", json={"nome": "Vila Nova", "taxa": 5.0}, headers=auth_headers)
+    bairro_id = json.loads(criar.data)["id"]
+
+    resposta = client.put(
+        f"/bairros/{bairro_id}",
+        json={"nome": "Vila Nova", "taxa": 8.0},
+        headers=auth_headers,
+    )
+
+    assert resposta.status_code == 200
+    assert json.loads(resposta.data)["taxa"] == 8.0
+
+
+def test_editar_bairro_inexistente(client, auth_headers):
+    resposta = client.put(
+        "/bairros/999999",
+        json={"nome": "X", "taxa": 1.0},
+        headers=auth_headers,
+    )
+
+    assert resposta.status_code == 404
+
+
+def test_remover_bairro(client, auth_headers):
+    criar = client.post("/bairros", json={"nome": "Vila Nova", "taxa": 5.0}, headers=auth_headers)
+    bairro_id = json.loads(criar.data)["id"]
+
+    resposta = client.delete(f"/bairros/{bairro_id}", headers=auth_headers)
+
+    assert resposta.status_code == 200
+    nomes = [b["nome"] for b in json.loads(client.get("/bairros").data)]
+    assert "Vila Nova" not in nomes
+
+
+def test_remover_bairro_inexistente(client, auth_headers):
+    resposta = client.delete("/bairros/999999", headers=auth_headers)
+
+    assert resposta.status_code == 404
+
+
+# ── Histórico (entregues/recusados dos últimos 7 dias) ─────────────
+
+def test_historico_exige_login(client):
+    response = client.get("/pedidos/historico")
+
+    assert response.status_code == 401
+
+
+def test_historico_nao_traz_pedidos_ativos(client, auth_headers):
+    criar = _criar_pedido_dinheiro(client, valor=20.0)
+    pedido_id = json.loads(criar.data)["id"]
+
+    response = client.get("/pedidos/historico", headers=auth_headers)
+
+    assert response.status_code == 200
+    ids = [p["id"] for p in json.loads(response.data)]
+    assert pedido_id not in ids
+
+
+def test_historico_traz_entregues(client, auth_headers):
+    criar = _criar_pedido_dinheiro(client, valor=20.0)
+    pedido_id = json.loads(criar.data)["id"]
+
+    for _ in range(3):
+        client.patch(f"/pedidos/{pedido_id}/status", headers=auth_headers)  # -> entregue
+
+    response = client.get("/pedidos/historico", headers=auth_headers)
+
+    assert response.status_code == 200
+    ids = [p["id"] for p in json.loads(response.data)]
+    assert pedido_id in ids
+
+
+def test_historico_traz_recusados(client, auth_headers):
+    criar = _criar_pedido_dinheiro(client, valor=20.0)
+    pedido_id = json.loads(criar.data)["id"]
+
+    client.patch(f"/pedidos/{pedido_id}/recusar", headers=auth_headers)
+
+    response = client.get("/pedidos/historico", headers=auth_headers)
+
+    assert response.status_code == 200
+    ids = [p["id"] for p in json.loads(response.data)]
+    assert pedido_id in ids
+
+
+def test_historico_inclui_pedidos_ja_arquivados(client, auth_headers):
+    criar = _criar_pedido_dinheiro(client, valor=20.0)
+    pedido_id = json.loads(criar.data)["id"]
+
+    for _ in range(3):
+        client.patch(f"/pedidos/{pedido_id}/status", headers=auth_headers)  # -> entregue
+
+    client.delete("/pedidos/entregues", headers=auth_headers)  # arquiva
+
+    ativos = json.loads(client.get("/pedidos", headers=auth_headers).data)
+    assert pedido_id not in [p["id"] for p in ativos]
+
+    historico = json.loads(client.get("/pedidos/historico", headers=auth_headers).data)
+    assert pedido_id in [p["id"] for p in historico]

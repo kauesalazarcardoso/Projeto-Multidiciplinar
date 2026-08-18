@@ -16,11 +16,11 @@ SQLITE_PATH = os.environ.get(
 )
 
 _TABELAS = (
-    "pedidos", "cardapio", "complementos", "cartoes", "pix_cobrancas",
+    "pedidos", "cardapio", "complementos",
     "usuarios", "horarios", "chat_sessoes",
 )
 
-_TABELAS_COM_SERIAL = ("cardapio", "complementos", "cartoes", "pix_cobrancas", "usuarios")
+_TABELAS_COM_SERIAL = ("cardapio", "complementos", "usuarios")
 
 
 def _colunas_postgres(conn, tabela):
