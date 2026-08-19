@@ -10,12 +10,17 @@
 
 * { box-sizing: border-box; }
 
+html {
+  overflow-x: hidden;
+}
+
 body {
   font-family: 'Nunito', sans-serif;
   margin: 0;
   background: #f0ebfa;
   color: #333;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 .header {
@@ -23,8 +28,10 @@ body {
   color: white;
   padding: 16px 5%;
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
   position: sticky;
   top: 0;
   z-index: 100;
@@ -34,6 +41,12 @@ body {
   margin: 0;
   font-family: 'Baloo 2', cursive;
   font-size: 1.4rem;
+}
+
+.header-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .btn-limpar {
@@ -254,4 +267,17 @@ body {
 .venda-dia-qtd {
   font-size: 0.72rem;
   color: #999;
+}
+
+/* MOBILE */
+@media (max-width: 600px) {
+  .header { padding: 12px 4%; }
+  .header h1 { font-size: 1.1rem; }
+  .header-acoes { width: 100%; }
+  .btn-limpar { flex: 1 1 auto; padding: 8px 10px; font-size: 0.78rem; }
+
+  .container { padding: 0 12px; margin: 16px auto; }
+  .pedido-card { padding: 16px; }
+
+  .btn-acao { min-width: 0; flex: 1 1 45%; padding: 10px 6px; font-size: 0.82rem; }
 }

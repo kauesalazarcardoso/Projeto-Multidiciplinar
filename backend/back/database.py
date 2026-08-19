@@ -50,6 +50,10 @@ _COMPLEMENTOS_INICIAIS = [
 
 _BAIRROS_INICIAIS = [
     ("Centro", 3.0),
+    ("Rio Branco", 3.0),
+    ("Rolantinho", 8.0),
+    ("Alto Rolantinho", 8.0),
+    ("Areia", 7.0),
 ]
 
 _HORARIOS_INICIAIS = [
@@ -134,6 +138,15 @@ _CHAT_SESSOES_COLUNAS_NOVAS = {
 def _migrar_chat_sessoes(conn):
     for coluna, definicao in _CHAT_SESSOES_COLUNAS_NOVAS.items():
         conn.execute(f"ALTER TABLE chat_sessoes ADD COLUMN IF NOT EXISTS {coluna} {definicao}")
+
+
+def _migrar_bairros(conn):
+    # ON CONFLICT DO NOTHING preserva bairros já cadastrados/editados no Admin
+    # e só acrescenta os padrões que ainda não existem (por nome).
+    conn.cursor().executemany(
+        "INSERT INTO bairros (nome, taxa) VALUES (%s, %s) ON CONFLICT (nome) DO NOTHING",
+        _BAIRROS_INICIAIS
+    )
 
 
 _COMPLEMENTOS_COLUNAS_NOVAS = {
@@ -280,11 +293,7 @@ def init_db():
                 "INSERT INTO complementos (nome, categoria) VALUES (%s, %s)",
                 _COMPLEMENTOS_INICIAIS
             )
-        if conn.execute("SELECT COUNT(*) AS c FROM bairros").fetchone()["c"] == 0:
-            conn.cursor().executemany(
-                "INSERT INTO bairros (nome, taxa) VALUES (%s, %s)",
-                _BAIRROS_INICIAIS
-            )
+        _migrar_bairros(conn)
         if conn.execute("SELECT COUNT(*) AS c FROM horarios").fetchone()["c"] == 0:
             conn.cursor().executemany(
                 "INSERT INTO horarios (dia, abre, fecha, fechado) VALUES (%s, %s, %s, %s)",

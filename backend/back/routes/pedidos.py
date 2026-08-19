@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 import json
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from database import get_conn
 from routes.auth import login_required
@@ -70,6 +70,16 @@ def listar_pedidos():
     return jsonify([_serializar_pedido(r) for r in rows])
 
 
+def _limiar_id_dias(dias):
+    """Converte 'N dias atrás' num id mínimo (id = timestamp em ms). Usar
+    'id >= limiar' em vez de 'to_timestamp(id/1000.0) >= ...' permite ao
+    Postgres usar o índice da chave primária em vez de varrer a tabela
+    inteira aplicando a função em cada linha — essencial pois a tabela
+    'pedidos' só cresce (pedidos antigos são arquivados, nunca apagados)."""
+    limite = datetime.now(timezone.utc) - timedelta(days=dias)
+    return int(limite.timestamp() * 1000)
+
+
 @pedidos_bp.route("/pedidos/historico", methods=["GET"])
 @login_required
 def historico_pedidos():
@@ -79,10 +89,9 @@ def historico_pedidos():
     with get_conn() as conn:
         rows = conn.execute(
             f"SELECT {_COLUNAS_PEDIDO} FROM pedidos "
-            "WHERE status IN ('entregue', %s) "
-            "AND to_timestamp(id / 1000.0) >= NOW() - INTERVAL '7 days' "
+            "WHERE status IN ('entregue', %s) AND id >= %s "
             "ORDER BY id DESC",
-            (STATUS_RECUSADO,)
+            (STATUS_RECUSADO, _limiar_id_dias(7))
         ).fetchall()
     return jsonify([_serializar_pedido(r) for r in rows])
 
@@ -101,10 +110,10 @@ def vendas_por_dia():
                 SUM(total) AS total_dia,
                 COUNT(*) AS pedidos_dia
             FROM pedidos
-            WHERE status = 'entregue'
-              AND to_timestamp(id / 1000.0) >= NOW() - INTERVAL '7 days'
+            WHERE status = 'entregue' AND id >= %s
             GROUP BY dia
-            """
+            """,
+            (_limiar_id_dias(7),)
         ).fetchall()
 
     por_dia = {row["dia"].isoformat(): row for row in rows}

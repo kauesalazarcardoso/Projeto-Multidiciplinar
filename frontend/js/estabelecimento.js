@@ -337,13 +337,16 @@ async function fetchHistorico() {
 
 async function toggleHistorico() {
   historicoAberto = !historicoAberto;
-  const btn = document.getElementById('btn-historico');
-  const el  = document.getElementById('secao-historico');
+  const btn         = document.getElementById('btn-historico');
+  const el          = document.getElementById('secao-historico');
+  const listaPedidos = document.getElementById('lista-pedidos');
   if (historicoAberto) {
     btn.textContent = '📜 Fechar Histórico';
+    listaPedidos.style.display = 'none';
     await renderHistorico();
   } else {
     btn.textContent = '📜 Histórico (7 dias)';
+    listaPedidos.style.display = '';
     el.innerHTML = '';
   }
 }
@@ -360,14 +363,21 @@ async function renderHistorico() {
     return;
   }
 
+  const botaoVoltar = `
+    <button class="btn-acao btn-voltar" onclick="toggleHistorico()" style="margin-bottom:12px">
+      ⬅️ Voltar para a Fila
+    </button>`;
+
   if (pedidos.length === 0) {
     el.innerHTML = `
+      ${botaoVoltar}
       <h2 class="secao-titulo">📜 Histórico (últimos 7 dias)</h2>
       <p style="text-align:center;color:#999">Nenhum pedido entregue ou recusado nos últimos 7 dias.</p>`;
     return;
   }
 
   el.innerHTML = `
+    ${botaoVoltar}
     <h2 class="secao-titulo">📜 Histórico (últimos 7 dias)</h2>
     ${pedidos.map(p => {
       const podeVoltar = ORDEM.indexOf(p.status) > 0;

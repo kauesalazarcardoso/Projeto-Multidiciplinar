@@ -12,9 +12,9 @@
   </script>
 </head>
 <body>
-  <header class="header" style="display:flex;justify-content:space-between;align-items:center">
+  <header class="header">
     <h1>⚙️ Painel Admin — Lovers Açaí</h1>
-    <button onclick="logout()" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.3);padding:8px 16px;border-radius:8px;cursor:pointer;font-family:'Nunito',sans-serif;font-size:0.85rem">Sair</button>
+    <button class="btn-limpar" onclick="logout()">Sair</button>
   </header>
 
   <div class="container">
@@ -34,14 +34,16 @@
         <button onclick="adicionarItem()">+ Adicionar</button>
       </div>
       <p id="erro-form" class="erro"></p>
-      <table class="tabela">
-        <thead>
-          <tr><th>#</th><th>Nome</th><th>Preço</th><th>Categoria</th><th>Ações</th></tr>
-        </thead>
-        <tbody id="tabela-body">
-          <tr><td colspan="5" style="text-align:center;color:#999">Carregando...</td></tr>
-        </tbody>
-      </table>
+      <div class="tabela-scroll">
+        <table class="tabela">
+          <thead>
+            <tr><th>#</th><th>Nome</th><th>Preço</th><th>Categoria</th><th>Ações</th></tr>
+          </thead>
+          <tbody id="tabela-body">
+            <tr><td colspan="5" style="text-align:center;color:#999">Carregando...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <section class="secao" style="margin-top:24px">
@@ -59,14 +61,16 @@
         <button onclick="adicionarComplemento()">+ Adicionar</button>
       </div>
       <p id="erro-complemento" class="erro"></p>
-      <table class="tabela">
-        <thead>
-          <tr><th>#</th><th>Nome</th><th>Preço adicional</th><th>Categoria</th><th>Ações</th></tr>
-        </thead>
-        <tbody id="tabela-complementos">
-          <tr><td colspan="5" style="text-align:center;color:#999">Carregando...</td></tr>
-        </tbody>
-      </table>
+      <div class="tabela-scroll">
+        <table class="tabela">
+          <thead>
+            <tr><th>#</th><th>Nome</th><th>Preço adicional</th><th>Categoria</th><th>Ações</th></tr>
+          </thead>
+          <tbody id="tabela-complementos">
+            <tr><td colspan="5" style="text-align:center;color:#999">Carregando...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <section class="secao" style="margin-top:24px">
@@ -77,26 +81,30 @@
         <button onclick="adicionarBairro()">+ Adicionar</button>
       </div>
       <p id="erro-bairro" class="erro"></p>
-      <table class="tabela">
-        <thead>
-          <tr><th>#</th><th>Bairro</th><th>Taxa de entrega</th><th>Ações</th></tr>
-        </thead>
-        <tbody id="tabela-bairros">
-          <tr><td colspan="4" style="text-align:center;color:#999">Carregando...</td></tr>
-        </tbody>
-      </table>
+      <div class="tabela-scroll">
+        <table class="tabela">
+          <thead>
+            <tr><th>#</th><th>Bairro</th><th>Taxa de entrega</th><th>Ações</th></tr>
+          </thead>
+          <tbody id="tabela-bairros">
+            <tr><td colspan="4" style="text-align:center;color:#999">Carregando...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <section class="secao" style="margin-top:24px">
       <h2>🕐 Horário de Atendimento</h2>
-      <table class="tabela">
-        <thead>
-          <tr><th>Dia</th><th>Abre</th><th>Fecha</th><th>Fechado</th><th>Ações</th></tr>
-        </thead>
-        <tbody id="tabela-horarios">
-          <tr><td colspan="5" style="text-align:center;color:#999">Carregando...</td></tr>
-        </tbody>
-      </table>
+      <div class="tabela-scroll">
+        <table class="tabela">
+          <thead>
+            <tr><th>Dia</th><th>Abre</th><th>Fecha</th><th>Fechado</th><th>Ações</th></tr>
+          </thead>
+          <tbody id="tabela-horarios">
+            <tr><td colspan="5" style="text-align:center;color:#999">Carregando...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
   </div>
