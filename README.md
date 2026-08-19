@@ -23,10 +23,10 @@ Sistema web para gerenciamento de pedidos de açaí, desenvolvido para pequenos 
 | Camada | Onde está hospedado |
 |---|---|
 | Frontend | [Netlify](https://www.netlify.com/) — `netlify.toml` publica a pasta `frontend/`, deploy automático a cada push no `main` |
-| Backend | [Google Cloud Run](https://cloud.google.com/run) — build a partir de `backend/Dockerfile`, deploy manual via `gcloud run deploy --source` (sem CI/CD automático) |
+| Backend | [Google Cloud Run](https://cloud.google.com/run) — build a partir de `backend/Dockerfile`, deploy automático via GitHub Actions (`.github/workflows/deploy-backend.yml`) a cada push no `main` que toque em `backend/` |
 | Banco de dados | [Neon](https://neon.tech/) — PostgreSQL serverless, conectado via `DATABASE_URL` |
 
-Segredos do backend (`DATABASE_URL`, `GEMINI_API_KEY`, `VAPID_PRIVATE_KEY`) ficam no Secret Manager do Google Cloud, não no repositório. O serviço roda com `--max-instances=3` e um alerta de orçamento configurado na conta de faturamento.
+Segredos do backend (`DATABASE_URL`, `GEMINI_API_KEY`, `VAPID_PRIVATE_KEY`) ficam no Secret Manager do Google Cloud, não no repositório. O serviço roda com `--max-instances=3` e um alerta de orçamento configurado na conta de faturamento. A autenticação do GitHub Actions com o Google Cloud usa Workload Identity Federation (sem chave de service account armazenada).
 
 Localmente, o `docker-compose.yml` sobe um PostgreSQL próprio (container `tcc_acai_postgres`) para desenvolvimento — não é necessário depender do Neon para rodar o projeto na sua máquina.
 
