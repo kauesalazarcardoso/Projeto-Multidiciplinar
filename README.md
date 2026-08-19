@@ -22,9 +22,11 @@ Sistema web para gerenciamento de pedidos de açaí, desenvolvido para pequenos 
 
 | Camada | Onde está hospedado |
 |---|---|
-| Frontend | [Netlify](https://www.netlify.com/) — `netlify.toml` publica a pasta `frontend/` |
-| Backend | [Render](https://render.com/) — `render.yaml`, deploy via Docker a partir de `backend/Dockerfile` |
+| Frontend | [Netlify](https://www.netlify.com/) — `netlify.toml` publica a pasta `frontend/`, deploy automático a cada push no `main` |
+| Backend | [Google Cloud Run](https://cloud.google.com/run) — build a partir de `backend/Dockerfile`, deploy manual via `gcloud run deploy --source` (sem CI/CD automático) |
 | Banco de dados | [Neon](https://neon.tech/) — PostgreSQL serverless, conectado via `DATABASE_URL` |
+
+Segredos do backend (`DATABASE_URL`, `GEMINI_API_KEY`, `VAPID_PRIVATE_KEY`) ficam no Secret Manager do Google Cloud, não no repositório. O serviço roda com `--max-instances=3` e um alerta de orçamento configurado na conta de faturamento.
 
 Localmente, o `docker-compose.yml` sobe um PostgreSQL próprio (container `tcc_acai_postgres`) para desenvolvimento — não é necessário depender do Neon para rodar o projeto na sua máquina.
 
@@ -70,8 +72,7 @@ TCC/
 ├── db/
 │   └── init/                    # Script SQL de inicialização do Postgres local (docker-compose)
 ├── docker-compose.yml
-├── netlify.toml                 # Config de deploy do frontend (Netlify)
-└── render.yaml                  # Config de deploy do backend (Render)
+└── netlify.toml                 # Config de deploy do frontend (Netlify)
 ```
 
 ---
@@ -93,7 +94,7 @@ VAPID_PUBLIC_KEY=<chave pública VAPID>
 VAPID_CONTATO=mailto:seu-email@exemplo.com
 ```
 
-`DATABASE_URL` não precisa entrar no `.env` local — o `docker-compose.yml` já aponta para o Postgres do próprio container. Em produção (Render), `DATABASE_URL` é configurada apontando para o banco no Neon.
+`DATABASE_URL` não precisa entrar no `.env` local — o `docker-compose.yml` já aponta para o Postgres do próprio container. Em produção (Cloud Run), `DATABASE_URL` fica no Secret Manager, apontando para o banco no Neon.
 
 ### Subir o projeto
 
@@ -170,7 +171,7 @@ Para definir outras credenciais desde o início, exporte `OWNER_USUARIO` e `OWNE
 
 ## API — Backend
 
-Base URL local: `http://localhost:5000` · Base URL produção: `https://acai-express-backend.onrender.com`
+Base URL local: `http://localhost:5000` · Base URL produção: `https://acai-express-backend-738933484701.us-east1.run.app`
 
 Rotas marcadas com 🔒 exigem o cabeçalho `Authorization: Bearer <token>`, obtido em `/login`.
 
