@@ -344,21 +344,33 @@ async function confirmarPedido() {
   }
 }
 
+async function carregarCardapioInicial(tentativa = 1) {
+  const [resProd, resComp, resBairros] = await Promise.all([
+    fetch(`${API}/cardapio`),
+    fetch(`${API}/complementos`),
+    fetch(`${API}/bairros`),
+  ]);
+  produtos     = await resProd.json();
+  complementos = await resComp.json();
+  bairros      = await resBairros.json();
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+  // Uma nova tentativa cobre o backend acordando de um cold start (Cloud Run):
+  // a primeira chamada pode falhar/expirar antes da instância terminar de subir.
   try {
-    const [resProd, resComp, resBairros] = await Promise.all([
-      fetch(`${API}/cardapio`),
-      fetch(`${API}/complementos`),
-      fetch(`${API}/bairros`),
-    ]);
-    produtos     = await resProd.json();
-    complementos = await resComp.json();
-    bairros      = await resBairros.json();
+    await carregarCardapioInicial();
   } catch (e) {
-    console.error('Erro ao carregar cardápio/complementos/bairros:', e);
-    document.getElementById('produtos-grid').innerHTML =
-      '<p style="text-align:center;color:#e74c3c">Erro ao carregar cardápio. Verifique a conexão.</p>';
-    return;
+    console.warn('Falha ao carregar cardápio, tentando novamente em 3s...', e);
+    await new Promise(r => setTimeout(r, 3000));
+    try {
+      await carregarCardapioInicial();
+    } catch (e2) {
+      console.error('Erro ao carregar cardápio/complementos/bairros:', e2);
+      document.getElementById('produtos-grid').innerHTML =
+        '<p style="text-align:center;color:#e74c3c">Erro ao carregar cardápio. Verifique a conexão.</p>';
+      return;
+    }
   }
 
   renderCategoriaTabs();
