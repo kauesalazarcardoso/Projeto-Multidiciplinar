@@ -1,6 +1,6 @@
 const API = location.hostname === 'localhost'
   ? 'http://localhost:5000'
-  : 'https://acai-express-backend.onrender.com';
+  : 'https://acai-express-backend-738933484701.us-east1.run.app';
 // Deve espelhar TAXA_MAQUININHA_ATE_50/TAXA_MAQUININHA_ACIMA_50/LIMITE_ITENS_TAXA_MAQUININHA
 // em backend/back/routes/pedidos.py
 const TAXA_MAQUININHA_ATE_50 = 2.0;

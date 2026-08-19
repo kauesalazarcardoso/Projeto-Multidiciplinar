@@ -1,6 +1,6 @@
 const API = location.hostname === 'localhost'
   ? 'http://localhost:5000'
-  : 'https://acai-express-backend.onrender.com';
+  : 'https://acai-express-backend-738933484701.us-east1.run.app';
 
 let _itensMap = {};
 

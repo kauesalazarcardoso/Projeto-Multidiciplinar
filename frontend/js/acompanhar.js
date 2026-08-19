@@ -1,6 +1,6 @@
 const API = location.hostname === 'localhost'
   ? 'http://localhost:5000'
-  : 'https://acai-express-backend.onrender.com';
+  : 'https://acai-express-backend-738933484701.us-east1.run.app';
 
 const STEPS = [
   { status: 'aguardando', icone: '🕐', titulo: 'Pedido Recebido',   desc: 'Aguardando confirmação do estabelecimento' },
