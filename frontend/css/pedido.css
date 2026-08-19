@@ -455,6 +455,8 @@ body {
 }
 
 .modal input {
+  width: 100%;
+  box-sizing: border-box;
   border: 1.5px solid #ddd;
   border-radius: 10px;
   padding: 11px 14px;
@@ -469,6 +471,8 @@ body {
 }
 
 .modal select {
+  width: 100%;
+  box-sizing: border-box;
   border: 1.5px solid #ddd;
   border-radius: 10px;
   padding: 11px 14px;
