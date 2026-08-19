@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 
 from app import app as flask_app
 from database import init_db, OWNER_USUARIO_PADRAO, OWNER_SENHA_PADRAO
+from extensions import limiter
 import database
 import horario
 from routes import auth as auth_module
@@ -44,6 +45,10 @@ def client(monkeypatch):
     # limpo pelo TRUNCATE acima) — sem isso, um teste que erra a senha
     # várias vezes deixaria o usuário "admin" bloqueado pros testes seguintes.
     auth_module._tentativas_login.clear()
+    # Contadores do rate limiting também são em memória e não são limpos pelo
+    # TRUNCATE — sem isso, testes que criam vários pedidos em sequência
+    # esbarrariam no limite por causa de execuções anteriores.
+    limiter.reset()
     with flask_app.test_client() as client:
         yield client
 

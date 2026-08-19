@@ -4,6 +4,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from database import get_conn
+from extensions import limiter
 from routes.auth import login_required
 import horario as horario_mod
 import push
@@ -265,6 +266,7 @@ def _criar_pedido_interno(data):
 
 
 @pedidos_bp.route("/pedidos", methods=["POST"])
+@limiter.limit("15 per minute")
 def criar_pedido():
     data = request.get_json()
     try:

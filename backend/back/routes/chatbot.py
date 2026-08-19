@@ -6,6 +6,7 @@ from flask import Blueprint, jsonify, request
 
 import chatbot_gemini
 from database import get_conn
+from extensions import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ def _salvar_interaction_id(sessao_id, interaction_id):
 
 
 @chatbot_bp.route("/chatbot/mensagem", methods=["POST"])
+@limiter.limit("10 per minute")
 def enviar_mensagem():
     data = request.get_json()
     if not data or not str(data.get("mensagem", "")).strip():
