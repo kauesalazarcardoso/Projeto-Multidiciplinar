@@ -5,11 +5,19 @@ import pytest
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'back')))
 
 from app import app as flask_app
-from database import init_db, OWNER_USUARIO_PADRAO, OWNER_SENHA_PADRAO
+from database import init_db
 from extensions import limiter
 import database
 import horario
 from routes import auth as auth_module
+
+# OWNER_USUARIO/OWNER_SENHA não têm mais valor padrão hardcoded no código —
+# os testes precisam fornecer os próprios via env var antes de init_db()
+# criar o usuário admin inicial (só acontece quando a tabela usuarios está vazia).
+OWNER_USUARIO_PADRAO = "admin"
+OWNER_SENHA_PADRAO = "senha-de-teste-123"
+os.environ["OWNER_USUARIO"] = OWNER_USUARIO_PADRAO
+os.environ["OWNER_SENHA"] = OWNER_SENHA_PADRAO
 
 
 @pytest.fixture(autouse=True)

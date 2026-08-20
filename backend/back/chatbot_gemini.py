@@ -113,9 +113,10 @@ TOOLS = [
                     "properties": {
                         "nome": {"type": "string"},
                         "tel": {"type": "string"},
-                        "end": {"type": "string", "description": "Endereço completo de entrega"},
+                        "rua": {"type": "string", "description": "Nome da rua/avenida, sem número"},
+                        "numero": {"type": "string", "description": "Número do endereço"},
                     },
-                    "required": ["nome", "tel", "end"],
+                    "required": ["nome", "tel", "rua", "numero"],
                 },
                 "itens": {
                     "type": "array",
@@ -183,6 +184,27 @@ def _consultar_horario():
     return {"aberto_agora": aberto, "motivo": motivo, "horarios": horario_mod.buscar_horarios()}
 
 
+def _preparar_pedido_chatbot(entrada):
+    """Monta o campo 'end' a partir de rua/número/bairro no backend, em vez
+    de deixar o modelo escrever o endereço completo como texto livre — em
+    teste real o modelo chegou a chamar criar_pedido sem incluir o nome da
+    rua no endereço. Rua e número são obrigatórios no schema da tool, mas
+    valida de novo aqui porque um required no schema não garante que o
+    modelo não vai mandar string vazia."""
+    entrada = dict(entrada)
+    cliente = dict(entrada.get("cliente") or {})
+    rua = str(cliente.pop("rua", "") or "").strip()
+    numero = str(cliente.pop("numero", "") or "").strip()
+    bairro = str(entrada.get("bairro", "") or "").strip()
+
+    if not rua or not numero:
+        raise PedidoInvalido("Endereço incompleto: informe rua e número", 400)
+
+    cliente["end"] = f"{rua}, {numero} — {bairro}, Rolante"
+    entrada["cliente"] = cliente
+    return entrada
+
+
 def executar_tool(nome, entrada, sessao_id):
     """Executa uma tool chamada pelo Gemini. Retorna sempre uma string JSON."""
     if nome == "consultar_cardapio":
@@ -199,6 +221,7 @@ def executar_tool(nome, entrada, sessao_id):
 
     if nome == "criar_pedido":
         try:
+            entrada = _preparar_pedido_chatbot(entrada)
             resultado = _criar_pedido_interno(entrada)
             return json.dumps(resultado, ensure_ascii=False)
         except PedidoInvalido as e:

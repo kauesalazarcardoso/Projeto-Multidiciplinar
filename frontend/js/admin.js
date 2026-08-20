@@ -1,14 +1,4 @@
-const API = location.hostname === 'localhost'
-  ? 'http://localhost:5000'
-  : 'https://acai-express-backend-738933484701.us-east1.run.app';
-
 let _itensMap = {};
-
-function escapeHtml(texto) {
-  const div = document.createElement('div');
-  div.textContent = texto;
-  return div.innerHTML;
-}
 
 // ── CARDÁPIO ─────────────────────────────────────────────────────
 

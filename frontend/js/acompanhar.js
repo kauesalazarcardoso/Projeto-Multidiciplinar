@@ -1,7 +1,3 @@
-const API = location.hostname === 'localhost'
-  ? 'http://localhost:5000'
-  : 'https://acai-express-backend-738933484701.us-east1.run.app';
-
 const STEPS = [
   { status: 'aguardando', icone: '🕐', titulo: 'Pedido Recebido',   desc: 'Aguardando confirmação do estabelecimento' },
   { status: 'confirmado', icone: '✅', titulo: 'Pedido Confirmado', desc: 'O estabelecimento confirmou seu pedido' },
@@ -10,12 +6,6 @@ const STEPS = [
 ];
 
 const ORDEM = ['aguardando', 'confirmado', 'a_caminho', 'entregue'];
-
-function escapeHtml(texto) {
-  const div = document.createElement('div');
-  div.textContent = texto;
-  return div.innerHTML;
-}
 
 function getIds() {
   try { return JSON.parse(localStorage.getItem('pedidoIds') || '[]'); }
@@ -39,7 +29,7 @@ if (idFromUrl) addId(idFromUrl);
 
 async function fetchPedido(id) {
   try {
-    const res = await fetch(`${API}/pedidos/${id}`);
+    const res = await fetch(`${API}/pedidos/rastrear/${id}`);
     return res.ok ? await res.json() : null;
   } catch { return null; }
 }
@@ -119,18 +109,6 @@ function cardRecusadoHTML(pedido) {
       </div>
       <p class="pix-info">Entre em contato pelo WhatsApp da loja se tiver dúvidas.</p>
     </div>`;
-}
-
-function formatarPagamento(pedido) {
-  if (pedido.forma_pagamento === 'cartao') {
-    return 'Cartão (maquininha na entrega)';
-  }
-  if (pedido.forma_pagamento === 'dinheiro') {
-    return pedido.troco_para
-      ? `Dinheiro (troco para R$ ${Number(pedido.troco_para).toFixed(2)})`
-      : 'Dinheiro (sem troco)';
-  }
-  return 'Pix';
 }
 
 async function render() {

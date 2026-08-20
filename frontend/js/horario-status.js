@@ -1,7 +1,3 @@
-const HORARIO_API = location.hostname === 'localhost'
-  ? 'http://localhost:5000'
-  : 'https://acai-express-backend-738933484701.us-east1.run.app';
-
 function _diaAtual() {
   const dias = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
   return dias[new Date().getDay()];
@@ -28,7 +24,7 @@ async function carregarStatusHorario() {
   if (!alvo && !resumo) return;
 
   try {
-    const res = await fetch(`${HORARIO_API}/horario`);
+    const res = await fetch(`${API}/horario`);
     const data = await res.json();
     const hoje = data.horarios.find(h => h.dia === _diaAtual());
 

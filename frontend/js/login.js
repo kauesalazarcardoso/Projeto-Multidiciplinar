@@ -13,7 +13,7 @@ document.getElementById('form-login').addEventListener('submit', async (e) => {
   botao.textContent = 'Entrando…';
 
   try {
-    const res  = await fetch(`${AUTH_API}/login`, {
+    const res  = await fetch(`${API}/login`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ usuario, senha })

@@ -63,7 +63,7 @@ def test_tool_consultar_horario_fechado(client, monkeypatch):
 
 def test_tool_criar_pedido_sucesso(client):
     entrada = {
-        "cliente": {"nome": "Ana", "tel": "51988887777", "end": "Rua Y, 45"},
+        "cliente": {"nome": "Ana", "tel": "51988887777", "rua": "Rua Y", "numero": "45"},
         "itens": [{"nome": "Açaí 300ml", "preco": 15.0, "qtd": 1}],
         "bairro": "Centro",
         "total": 18.0,
@@ -76,8 +76,24 @@ def test_tool_criar_pedido_sucesso(client):
 
     from database import get_conn
     with get_conn() as conn:
-        row = conn.execute("SELECT id FROM pedidos WHERE id = %s", (resultado["id"],)).fetchone()
+        row = conn.execute("SELECT id, cliente FROM pedidos WHERE id = %s", (resultado["id"],)).fetchone()
     assert row is not None
+    assert "Rua Y" in json.loads(row["cliente"])["end"]
+
+
+def test_tool_criar_pedido_sem_rua_falha(client):
+    """Regressão: em teste manual o modelo chegou a chamar criar_pedido sem
+    incluir o nome da rua no endereço, porque antes era um campo de texto
+    livre. Agora rua/número são campos separados e obrigatórios."""
+    entrada = {
+        "cliente": {"nome": "Ana", "tel": "51988887777", "numero": "45"},
+        "itens": [{"nome": "Açaí 300ml", "preco": 15.0, "qtd": 1}],
+        "bairro": "Centro",
+        "total": 18.0,
+        "forma_pagamento": "dinheiro",
+    }
+    resultado = json.loads(chatbot_gemini.executar_tool("criar_pedido", entrada, "sessao-sem-rua"))
+    assert "erro" in resultado
 
 
 def test_tool_criar_pedido_invalido(client):
@@ -107,7 +123,7 @@ def test_tool_consultar_bairros(client):
 
 def test_tool_criar_pedido_sem_bairro_falha(client):
     entrada = {
-        "cliente": {"nome": "Ana", "tel": "51988887777", "end": "Rua Y, 45"},
+        "cliente": {"nome": "Ana", "tel": "51988887777", "rua": "Rua Y", "numero": "45"},
         "itens": [{"nome": "Açaí 300ml", "preco": 15.0, "qtd": 1}],
         "total": 15.0,
         "forma_pagamento": "dinheiro",

@@ -1,6 +1,3 @@
-const API = location.hostname === 'localhost'
-  ? 'http://localhost:5000'
-  : 'https://acai-express-backend-738933484701.us-east1.run.app';
 // Deve espelhar TAXA_MAQUININHA_ATE_50/TAXA_MAQUININHA_ACIMA_50/LIMITE_ITENS_TAXA_MAQUININHA
 // em backend/back/routes/pedidos.py
 const TAXA_MAQUININHA_ATE_50 = 2.0;
@@ -74,9 +71,9 @@ function _opcaoComplemento(p, comp) {
   return `
     <label class="opcao-item">
       <span class="opcao-nome">
-        <input type="checkbox" class="check-${p.id}" value="${comp.nome}" data-preco="${comp.preco}"
+        <input type="checkbox" class="check-${p.id}" value="${escapeHtml(comp.nome)}" data-preco="${comp.preco}"
           onchange="limitarAcompanhamentos(${p.id})">
-        ${comp.nome}
+        ${escapeHtml(comp.nome)}
       </span>
       ${comp.preco > 0 ? `<span class="preco-extra">+R$ ${comp.preco.toFixed(2)}</span>` : ''}
     </label>`;
@@ -112,7 +109,7 @@ function renderVitrine() {
 
   document.getElementById('produtos-grid').innerHTML = visiveis.map(p => `
     <div class="card">
-      <h3>${p.nome}</h3>
+      <h3>${escapeHtml(p.nome)}</h3>
       <span class="preco">R$ ${p.preco.toFixed(2)}</span>
       <button type="button" class="btn-toggle-opcoes" onclick="toggleOpcoes(${p.id})">
         <span>🍫 Complementos <span id="contador-${p.id}" class="contador-opcoes">toque para escolher</span></span>
@@ -177,8 +174,8 @@ function updateUI() {
     qtdTotal += item.qtd;
     return `
       <div class="cart-item">
-        <h4>${item.nome}</h4>
-        <p style="font-size:0.8rem;color:#666;margin:0">${item.extras.join(', ') || 'Puro'}</p>
+        <h4>${escapeHtml(item.nome)}</h4>
+        <p style="font-size:0.8rem;color:#666;margin:0">${escapeHtml(item.extras.join(', ')) || 'Puro'}</p>
         <div class="cart-controls">
           <span style="font-weight:bold">R$ ${(item.preco * item.qtd).toFixed(2)}</span>
           <div class="qty-box">
@@ -331,8 +328,8 @@ async function confirmarPedido() {
       throw new Error(data.erro || `Erro ${res.status}`);
     }
 
-    salvarPedidoLocal(data.id);
-    window.location.href = `acompanhar.html?id=${data.id}`;
+    salvarPedidoLocal(data.token);
+    window.location.href = `acompanhar.html?id=${data.token}`;
 
   } catch (e) {
     console.error(e);

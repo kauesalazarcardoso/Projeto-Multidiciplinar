@@ -1,7 +1,3 @@
-const CHAT_API = location.hostname === 'localhost'
-  ? 'http://localhost:5000'
-  : 'https://acai-express-backend-738933484701.us-east1.run.app';
-
 const CHAT_SESSAO_KEY = 'acaiChatSessaoId';
 
 function getChatSessaoId() {
@@ -66,7 +62,7 @@ async function enviarMensagemChat(e) {
   indicador.classList.add('chat-digitando');
 
   try {
-    const res = await fetch(`${CHAT_API}/chatbot/mensagem`, {
+    const res = await fetch(`${API}/chatbot/mensagem`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessao_id: getChatSessaoId(), mensagem: texto }),
