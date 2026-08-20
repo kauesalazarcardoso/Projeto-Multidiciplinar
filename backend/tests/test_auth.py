@@ -1,6 +1,6 @@
 import json
 
-from database import OWNER_USUARIO_PADRAO, OWNER_SENHA_PADRAO
+from conftest import OWNER_USUARIO_PADRAO, OWNER_SENHA_PADRAO
 from routes.auth import _LIMITE_TENTATIVAS
 
 

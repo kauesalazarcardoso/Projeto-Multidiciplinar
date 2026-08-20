@@ -7,9 +7,6 @@ from werkzeug.security import generate_password_hash
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
-OWNER_USUARIO_PADRAO = "admin"
-OWNER_SENHA_PADRAO = "acai2026"
-
 CATEGORIAS_CARDAPIO = ["Açaí Tradicional", "Cupuaçu", "Iogurte Grego", "Iogurte Grego com Morango"]
 
 _ITENS_INICIAIS = [
@@ -111,6 +108,12 @@ _PEDIDOS_COLUNAS_NOVAS = {
     "troco_para":      "REAL",
     "observacao":      "TEXT",
     "arquivado":       "BOOLEAN NOT NULL DEFAULT FALSE",
+    # Token aleatório usado pelo cliente pra consultar o próprio pedido
+    # (rota pública). O id numérico não serve pra isso: é só um timestamp em
+    # ms, adivinhável — usá-lo como chave de consulta pública expunha nome,
+    # telefone e endereço de qualquer cliente pra quem soubesse iterar IDs
+    # próximos de um horário conhecido.
+    "token":           "TEXT UNIQUE",
 }
 
 _PEDIDOS_COLUNAS_REMOVIDAS = (
@@ -277,8 +280,14 @@ def init_db():
             )
         """)
         if conn.execute("SELECT COUNT(*) AS c FROM usuarios").fetchone()["c"] == 0:
-            usuario = os.environ.get("OWNER_USUARIO", OWNER_USUARIO_PADRAO)
-            senha = os.environ.get("OWNER_SENHA", OWNER_SENHA_PADRAO)
+            usuario = os.environ.get("OWNER_USUARIO")
+            senha = os.environ.get("OWNER_SENHA")
+            if not usuario or not senha:
+                raise RuntimeError(
+                    "Nenhum usuário existe ainda no banco e OWNER_USUARIO/OWNER_SENHA "
+                    "não estão definidos — defina essas variáveis de ambiente para "
+                    "criar o usuário admin inicial."
+                )
             conn.execute(
                 "INSERT INTO usuarios (usuario, senha_hash) VALUES (%s, %s)",
                 (usuario, generate_password_hash(senha))

@@ -39,7 +39,7 @@ if (idFromUrl) addId(idFromUrl);
 
 async function fetchPedido(id) {
   try {
-    const res = await fetch(`${API}/pedidos/${id}`);
+    const res = await fetch(`${API}/pedidos/rastrear/${id}`);
     return res.ok ? await res.json() : null;
   } catch { return null; }
 }

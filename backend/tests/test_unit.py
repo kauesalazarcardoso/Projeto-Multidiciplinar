@@ -22,7 +22,7 @@ def test_rota_inexistente(client):
 
 def test_pedido_nao_encontrado(client):
 
-    response = client.get("/pedidos/999999")
+    response = client.get("/pedidos/rastrear/token-que-nao-existe")
 
     assert response.status_code == 404
 

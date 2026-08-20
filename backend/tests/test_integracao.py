@@ -183,11 +183,11 @@ def test_limpar_entregues_some_da_fila_mas_mantem_venda_no_historico(client, aut
     assert sum(d["total"] for d in vendas) == 42.0
 
 
-def test_buscar_pedido_por_id(client):
+def test_buscar_pedido_por_token(client):
     criar = _criar_pedido_dinheiro(client, valor=20.0)
-    pedido_id = json.loads(criar.data)["id"]
+    token = json.loads(criar.data)["token"]
 
-    response = client.get(f"/pedidos/{pedido_id}")
+    response = client.get(f"/pedidos/rastrear/{token}")
 
     assert response.status_code == 200
 
@@ -195,6 +195,24 @@ def test_buscar_pedido_por_id(client):
 
     assert data["forma_pagamento"] == "dinheiro"
     assert data["taxa_entrega"] == 3.0
+
+
+def test_buscar_pedido_token_inexistente_falha(client):
+    response = client.get("/pedidos/rastrear/token-que-nao-existe")
+
+    assert response.status_code == 404
+
+
+def test_buscar_pedido_por_id_numerico_nao_funciona_mais(client):
+    """A rota pública de acompanhamento não aceita mais o id numérico como
+    chave de busca — só o token aleatório (id sequencial permitia adivinhar
+    pedidos de outros clientes)."""
+    criar = _criar_pedido_dinheiro(client, valor=20.0)
+    pedido_id = json.loads(criar.data)["id"]
+
+    response = client.get(f"/pedidos/rastrear/{pedido_id}")
+
+    assert response.status_code == 404
 
 
 def test_criar_pedido_sem_forma_pagamento(client):
@@ -236,9 +254,9 @@ def test_criar_pedido_dinheiro_com_troco(client):
 
     criar = client.post("/pedidos", json=pedido)
     assert criar.status_code == 201
-    pedido_id = json.loads(criar.data)["id"]
+    token = json.loads(criar.data)["token"]
 
-    busca = client.get(f"/pedidos/{pedido_id}")
+    busca = client.get(f"/pedidos/rastrear/{token}")
     dados = json.loads(busca.data)
 
     assert dados["forma_pagamento"] == "dinheiro"
@@ -317,9 +335,9 @@ def test_criar_pedido_cartao_vai_direto_aguardando(client):
 def test_criar_pedido_cartao_taxa_maquininha_ate_50_reais_em_itens(client):
     itens = [{"nome": "Açaí", "preco": 50.0, "qtd": 1}]
     criar = _criar_pedido_cartao(client, itens, 55.0)
-    pedido_id = json.loads(criar.data)["id"]
+    token = json.loads(criar.data)["token"]
 
-    dados = json.loads(client.get(f"/pedidos/{pedido_id}").data)
+    dados = json.loads(client.get(f"/pedidos/rastrear/{token}").data)
     assert dados["taxa_entrega"] == 3.0
     assert dados["taxa_maquininha"] == 2.0
 
@@ -327,26 +345,26 @@ def test_criar_pedido_cartao_taxa_maquininha_ate_50_reais_em_itens(client):
 def test_criar_pedido_cartao_taxa_maquininha_acima_de_50_reais_em_itens(client):
     itens = [{"nome": "Açaí", "preco": 50.01, "qtd": 1}]
     criar = _criar_pedido_cartao(client, itens, 53.01)
-    pedido_id = json.loads(criar.data)["id"]
+    token = json.loads(criar.data)["token"]
 
-    dados = json.loads(client.get(f"/pedidos/{pedido_id}").data)
+    dados = json.loads(client.get(f"/pedidos/rastrear/{token}").data)
     assert dados["taxa_entrega"] == 3.0
     assert dados["taxa_maquininha"] == 3.0
 
 
 def test_criar_pedido_pix_taxa_maquininha_sempre_zero(client):
     response = _criar_pedido_pix(client, valor=20.0)
-    pedido_id = json.loads(response.data)["id"]
+    token = json.loads(response.data)["token"]
 
-    dados = json.loads(client.get(f"/pedidos/{pedido_id}").data)
+    dados = json.loads(client.get(f"/pedidos/rastrear/{token}").data)
     assert dados["taxa_maquininha"] == 0.0
 
 
 def test_criar_pedido_dinheiro_taxa_maquininha_sempre_zero(client):
     criar = _criar_pedido_dinheiro(client, valor=20.0)
-    pedido_id = json.loads(criar.data)["id"]
+    token = json.loads(criar.data)["token"]
 
-    dados = json.loads(client.get(f"/pedidos/{pedido_id}").data)
+    dados = json.loads(client.get(f"/pedidos/rastrear/{token}").data)
     assert dados["taxa_maquininha"] == 0.0
 
 
@@ -355,9 +373,9 @@ def test_criar_pedido_com_cartao_fluxo_completo(client):
     criar = _criar_pedido_cartao(client, itens, 23.0)
     assert criar.status_code == 201
 
-    pedido_id = json.loads(criar.data)["id"]
+    token = json.loads(criar.data)["token"]
 
-    response = client.get(f"/pedidos/{pedido_id}")
+    response = client.get(f"/pedidos/rastrear/{token}")
     data = json.loads(response.data)
 
     assert data["forma_pagamento"] == "cartao"
@@ -376,17 +394,17 @@ def test_criar_pedido_com_observacao(client):
         "observacao": "  sem leite condensado  ",
     }
     criar = client.post("/pedidos", json=pedido)
-    pedido_id = json.loads(criar.data)["id"]
+    token = json.loads(criar.data)["token"]
 
-    busca = client.get(f"/pedidos/{pedido_id}")
+    busca = client.get(f"/pedidos/rastrear/{token}")
     assert json.loads(busca.data)["observacao"] == "sem leite condensado"
 
 
 def test_criar_pedido_sem_observacao_vira_none(client):
     criar = _criar_pedido_dinheiro(client, valor=20.0)
-    pedido_id = json.loads(criar.data)["id"]
+    token = json.loads(criar.data)["token"]
 
-    busca = client.get(f"/pedidos/{pedido_id}")
+    busca = client.get(f"/pedidos/rastrear/{token}")
     assert json.loads(busca.data)["observacao"] is None
 
 
@@ -463,9 +481,9 @@ def test_criar_pedido_usa_taxa_do_bairro_cadastrado(client, auth_headers):
     }
     criar = client.post("/pedidos", json=pedido)
     assert criar.status_code == 201
-    pedido_id = json.loads(criar.data)["id"]
+    token = json.loads(criar.data)["token"]
 
-    dados = json.loads(client.get(f"/pedidos/{pedido_id}").data)
+    dados = json.loads(client.get(f"/pedidos/rastrear/{token}").data)
     assert dados["taxa_entrega"] == 7.5
 
 

@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 import json
+import secrets
 import time
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -134,12 +135,17 @@ def vendas_por_dia():
     return jsonify(resultado)
 
 
-@pedidos_bp.route("/pedidos/<int:pedido_id>", methods=["GET"])
-def buscar_pedido(pedido_id):
+@pedidos_bp.route("/pedidos/rastrear/<token>", methods=["GET"])
+def buscar_pedido_por_token(token):
+    """Rota pública de acompanhamento do cliente. Usa um token aleatório
+    (gerado na criação do pedido) em vez do id numérico interno — o id é só
+    um timestamp em ms, adivinhável, e usá-lo aqui deixava os dados de
+    qualquer cliente (nome, telefone, endereço) expostos pra quem soubesse
+    iterar ids próximos de um horário conhecido."""
     with get_conn() as conn:
         row = conn.execute(
-            f"SELECT {_COLUNAS_PEDIDO} FROM pedidos WHERE id = %s",
-            (pedido_id,)
+            f"SELECT {_COLUNAS_PEDIDO} FROM pedidos WHERE token = %s",
+            (token,)
         ).fetchone()
 
     if not row:
@@ -199,16 +205,18 @@ def _buscar_taxa_bairro(data):
 def _inserir_pedido(data, forma_pagamento, status_pedido, *, taxa_entrega,
                      taxa_maquininha=0.0, troco_para=None, observacao=None):
     pedido_id = int(time.time() * 1000)
+    token     = secrets.token_urlsafe(16)
     hora      = datetime.now().strftime("%H:%M")
 
     with get_conn() as conn:
         conn.execute(
             "INSERT INTO pedidos "
-            "(id, cliente, itens, total, status, hora, forma_pagamento, taxa_entrega, "
+            "(id, token, cliente, itens, total, status, hora, forma_pagamento, taxa_entrega, "
             "taxa_maquininha, troco_para, observacao) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (
                 pedido_id,
+                token,
                 json.dumps(data["cliente"], ensure_ascii=False),
                 json.dumps(data["itens"],   ensure_ascii=False),
                 data["total"],
@@ -224,7 +232,7 @@ def _inserir_pedido(data, forma_pagamento, status_pedido, *, taxa_entrega,
 
     _notificar_gestor(pedido_id, data["cliente"], data["total"])
 
-    return {"id": pedido_id, "hora": hora, "status": status_pedido}
+    return {"id": pedido_id, "token": token, "hora": hora, "status": status_pedido}
 
 
 def _criar_pedido_interno(data):
