@@ -459,7 +459,7 @@ body {
   margin-top: 6px;
 }
 
-.modal input {
+.modal input:not([type="radio"]):not([type="checkbox"]) {
   width: 100%;
   box-sizing: border-box;
   border: 1.5px solid #ddd;
@@ -541,8 +541,12 @@ body {
   font-weight: 600;
   color: #444;
   cursor: pointer;
-  white-space: nowrap;
   box-sizing: border-box;
+  overflow-wrap: break-word;
+}
+
+.pagamento-opcao input {
+  flex-shrink: 0;
 }
 
 @media (max-width: 420px) {
