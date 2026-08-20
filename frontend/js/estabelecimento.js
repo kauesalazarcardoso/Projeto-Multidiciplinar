@@ -1,8 +1,4 @@
 
-const API = location.hostname === 'localhost'
-  ? 'http://localhost:5000'
-  : 'https://acai-express-backend-738933484701.us-east1.run.app';
-
 const ORDEM  = ['aguardando', 'confirmado', 'a_caminho', 'entregue'];
 const LABELS = {
   aguardando: '🕐 Aguardando',
@@ -11,24 +7,6 @@ const LABELS = {
   entregue:   '🎉 Entregue',
   recusado:   '🚫 Recusado',
 };
-
-function formatarPagamento(pedido) {
-  if (pedido.forma_pagamento === 'cartao') {
-    return 'Cartão (maquininha na entrega)';
-  }
-  if (pedido.forma_pagamento === 'dinheiro') {
-    return pedido.troco_para
-      ? `Dinheiro (troco para R$ ${Number(pedido.troco_para).toFixed(2)})`
-      : 'Dinheiro (sem troco)';
-  }
-  return 'Pix';
-}
-
-function escapeHtml(texto) {
-  const div = document.createElement('div');
-  div.textContent = texto;
-  return div.innerHTML;
-}
 
 // ── NOTIFICAÇÃO WHATSAPP (link wa.me, envio é manual) ─────────
 // OBS: o link wa.me corrompe emoji no texto pré-preenchido (confirmado em teste

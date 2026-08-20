@@ -1,6 +1,3 @@
-const API = location.hostname === 'localhost'
-  ? 'http://localhost:5000'
-  : 'https://acai-express-backend-738933484701.us-east1.run.app';
 // Deve espelhar TAXA_MAQUININHA_ATE_50/TAXA_MAQUININHA_ACIMA_50/LIMITE_ITENS_TAXA_MAQUININHA
 // em backend/back/routes/pedidos.py
 const TAXA_MAQUININHA_ATE_50 = 2.0;
@@ -13,12 +10,6 @@ let categoriaAtiva = 'Todos';
 
 // Deve espelhar CATEGORIAS_COMPLEMENTOS em backend/back/database.py
 const ORDEM_CATEGORIAS_COMPLEMENTOS = ["Calda", "Frutas", "Complementos Gratuitos", "Complementos Adicionais"];
-
-function escapeHtml(texto) {
-  const div = document.createElement('div');
-  div.textContent = texto;
-  return div.innerHTML;
-}
 
 let produtos     = [];
 let complementos = [];

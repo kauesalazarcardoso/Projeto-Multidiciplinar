@@ -1,7 +1,3 @@
-const AUTH_API = location.hostname === 'localhost'
-  ? 'http://localhost:5000'
-  : 'https://acai-express-backend-738933484701.us-east1.run.app';
-
 function getToken() {
   return localStorage.getItem('authToken');
 }
@@ -43,7 +39,7 @@ async function logout() {
   clearToken();
   if (token) {
     try {
-      await fetch(`${AUTH_API}/logout`, {
+      await fetch(`${API}/logout`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
