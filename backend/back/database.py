@@ -85,6 +85,7 @@ def _get_pool():
             max_size=5,
             kwargs={"row_factory": dict_row},
             open=True,
+            check=ConnectionPool.check_connection,
         )
         _pool_dsn = DATABASE_URL
     return _pool

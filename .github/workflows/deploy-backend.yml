@@ -33,6 +33,7 @@ jobs:
             --region=us-east1 \
             --allow-unauthenticated \
             --max-instances=3 \
+            --memory=384Mi \
             --concurrency=8 \
             --set-env-vars="TZ=America/Sao_Paulo,VAPID_PUBLIC_KEY=BFuan3U92UOwmTmJEFJT88aoARZTpjZ76PY4zK3p5lxYMJ65zK21A-Xd9fMuG7d_GH8q6m6OSi86zHyP8PWXEc4,VAPID_CONTATO=mailto:kauesalazarcardoso123@gmail.com" \
             --set-secrets="DATABASE_URL=database-url:latest,GEMINI_API_KEY=gemini-api-key:latest,VAPID_PRIVATE_KEY=vapid-private-key:latest" \
