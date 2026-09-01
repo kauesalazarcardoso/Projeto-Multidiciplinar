@@ -57,7 +57,72 @@ function limitarAcompanhamentos(produtoId) {
   if (contador) {
     contador.textContent = marcados > 0 ? `${marcados} escolhido${marcados > 1 ? 's' : ''}` : 'toque para escolher';
   }
+  atualizarRecomendacoes(produtoId);
 }
+
+// Guarda, por produto, a lista de sugestões já buscada — ela é calculada uma
+// única vez (no primeiro complemento marcado) e só encolhe conforme o
+// cliente vai escolhendo itens dela, em vez de ser recalculada a cada
+// marcação (o que ficaria sugerindo pra sempre, sem nunca "acabar").
+const _recomendacoesCache = {};
+
+async function atualizarRecomendacoes(produtoId) {
+  const box = document.getElementById(`recomendacoes-${produtoId}`);
+  if (!box) return;
+
+  const selecionados = Array.from(document.querySelectorAll(`.check-${produtoId}:checked`)).map(c => c.value);
+
+  if (selecionados.length === 0) {
+    delete _recomendacoesCache[produtoId];
+    box.style.display = 'none';
+    box.innerHTML = '';
+    return;
+  }
+
+  if (!_recomendacoesCache[produtoId]) {
+    try {
+      const params = new URLSearchParams({ selecionados: selecionados.join(',') });
+      const res = await fetch(`${API}/recomendacoes/complementos?${params}`);
+      _recomendacoesCache[produtoId] = res.ok ? await res.json() : [];
+    } catch (e) {
+      _recomendacoesCache[produtoId] = [];
+    }
+  }
+
+  const selecionadosSet = new Set(selecionados);
+  const sugestoes = _recomendacoesCache[produtoId].filter(nome => !selecionadosSet.has(nome));
+
+  if (!sugestoes.length) {
+    box.style.display = 'none';
+    box.innerHTML = '';
+    return;
+  }
+
+  box.style.display = 'block';
+  box.innerHTML = `
+    <p class="recomendacao-titulo">✨ Combina bem com</p>
+    <div class="recomendacao-chips">
+      ${sugestoes.map(nome => `
+        <button type="button" class="chip-recomendacao" data-produto="${produtoId}" data-nome="${escapeHtml(nome)}">
+          + ${escapeHtml(nome)}
+        </button>
+      `).join('')}
+    </div>`;
+}
+
+function aplicarRecomendacao(produtoId, nome) {
+  const checkbox = Array.from(document.querySelectorAll(`.check-${produtoId}`)).find(c => c.value === nome);
+  if (checkbox && !checkbox.checked) {
+    checkbox.checked = true;
+    limitarAcompanhamentos(produtoId);
+  }
+}
+
+document.addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip-recomendacao');
+  if (!chip) return;
+  aplicarRecomendacao(Number(chip.dataset.produto), chip.dataset.nome);
+});
 
 function toggleOpcoes(produtoId) {
   const painel = document.getElementById(`opcoes-${produtoId}`);
@@ -120,6 +185,7 @@ function renderVitrine() {
           <p class="opcoes-titulo">${g.categoria}</p>
           ${g.itens.map(comp => _opcaoComplemento(p, comp)).join('')}
         `).join('')}
+        <div class="recomendacoes-box" id="recomendacoes-${p.id}" style="display:none"></div>
       </div>
       <button class="btn-add-vitrine" onclick="addToCart(${p.id})">Adicionar</button>
     </div>
